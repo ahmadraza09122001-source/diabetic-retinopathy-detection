@@ -34,6 +34,11 @@ backend/venv_old_ensemble_broken/
 backend/__pycache__/
 *.pyc
 *.keras
+# ...except the 3 working ensemble models - needed for Render deployment,
+# each is well under GitHub's 100MB per-file limit (no LFS needed)
+!backend/dr_model_working.keras
+!backend/dr_model_2.keras
+!backend/dr_model_3.keras
 *.log
 
 # MinGit (portable git, not part of the project)
