@@ -335,8 +335,6 @@ export default function UploadImage() {
         patientName,
         patientAge,
         gender: savedProfile?.gender,
-        diabetesType: savedProfile?.diabetesType,
-        diagnosisYear: savedProfile?.diagnosisYear,
         phone: savedProfile?.phone,
         fileName: image?.name,
         date: new Date().toISOString(),

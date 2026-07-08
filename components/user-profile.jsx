@@ -10,7 +10,6 @@ import { getUserProfile, saveUserProfile, deleteUserProfile } from "../firebase/
 import { useToast } from "../hooks/use-toast"
 
 const GENDERS = ["Male", "Female", "Other", "Prefer not to say"]
-const DIABETES_TYPES = ["Type 1", "Type 2", "Gestational", "Pre-diabetes", "Not diabetic"]
 
 const selectClassName =
   "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
@@ -20,8 +19,6 @@ export default function UserProfile() {
   const [phone, setPhone] = useState("")
   const [age, setAge] = useState("")
   const [gender, setGender] = useState("")
-  const [diabetesType, setDiabetesType] = useState("")
-  const [diagnosisYear, setDiagnosisYear] = useState("")
 
   const [hasProfile, setHasProfile] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
@@ -38,8 +35,6 @@ export default function UserProfile() {
     setPhone("")
     setAge("")
     setGender("")
-    setDiabetesType("")
-    setDiagnosisYear("")
   }
 
   const loadProfile = async () => {
@@ -56,8 +51,6 @@ export default function UserProfile() {
         setPhone(profile.phone || "")
         setAge(profile.age || "")
         setGender(profile.gender || "")
-        setDiabetesType(profile.diabetesType || "")
-        setDiagnosisYear(profile.diagnosisYear || "")
       } else {
         setHasProfile(false)
         resetFields(user.fullName || "")
@@ -82,7 +75,7 @@ export default function UserProfile() {
       if (!userInfo) throw new Error("User not found. Please log in again.")
       const user = JSON.parse(userInfo)
 
-      await saveUserProfile(user.uid, { fullName, phone, age, gender, diabetesType, diagnosisYear })
+      await saveUserProfile(user.uid, { fullName, phone, age, gender })
       setHasProfile(true)
 
       // Keep the display name in sync with localStorage/session state used elsewhere
@@ -207,33 +200,6 @@ export default function UserProfile() {
                     </option>
                   ))}
                 </select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="diabetesType">Diabetes Type</Label>
-                <select
-                  id="diabetesType"
-                  value={diabetesType}
-                  onChange={(e) => setDiabetesType(e.target.value)}
-                  className={selectClassName}
-                >
-                  <option value="">Select type</option>
-                  {DIABETES_TYPES.map((t) => (
-                    <option key={t} value={t}>
-                      {t}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="diagnosisYear">Year of Diagnosis</Label>
-                <Input
-                  id="diagnosisYear"
-                  type="number"
-                  min="1950"
-                  max={new Date().getFullYear()}
-                  value={diagnosisYear}
-                  onChange={(e) => setDiagnosisYear(e.target.value)}
-                />
               </div>
             </div>
           </div>
