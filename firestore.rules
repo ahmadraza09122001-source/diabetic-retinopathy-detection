@@ -3,7 +3,14 @@ service cloud.firestore {
   match /databases/{database}/documents {
     // Allow users to read and write only their own data
     match /scans/{scanId} {
-      allow read, write: if request.auth != null && request.auth.uid == resource.data.userId;
+      // Owner can always read/write their own scans. A user whose OWN profile
+      // has role "doctor" can additionally read (not write/delete) any scan -
+      // needed so the Patient Directory can show each patient's latest result.
+      allow read: if request.auth != null && (
+        request.auth.uid == resource.data.userId ||
+        get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data.role == 'doctor'
+      );
+      allow write: if request.auth != null && request.auth.uid == resource.data.userId;
       allow create: if request.auth != null && request.auth.uid == request.resource.data.userId;
     }
     

@@ -3,8 +3,22 @@ import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "./ui/card"
 import { Badge } from "./ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/table"
-import { getUserProfile, getProfilesByRole } from "../firebase/firestore"
+import { getUserProfile, getProfilesByRole, getUserScans } from "../firebase/firestore"
 import { useToast } from "../hooks/use-toast"
+
+const getResultColor = (grade) => {
+  const gradeMap = {
+    "No DR": "bg-green-100 text-green-800 border-green-300",
+    Mild: "bg-blue-100 text-blue-800 border-blue-300",
+    Moderate: "bg-yellow-100 text-yellow-800 border-yellow-300",
+    Severe: "bg-orange-100 text-orange-800 border-orange-300",
+    "Proliferative DR": "bg-red-100 text-red-800 border-red-300",
+  }
+  for (const [key, value] of Object.entries(gradeMap)) {
+    if (grade && grade.includes(key)) return value
+  }
+  return "bg-gray-100 text-gray-800 border-gray-300"
+}
 
 export default function PatientDirectory() {
   const [isDoctor, setIsDoctor] = useState(null) // null = still checking
@@ -35,7 +49,24 @@ export default function PatientDirectory() {
         getProfilesByRole("patient"),
         getProfilesByRole("doctor"),
       ])
-      setPatients(patientProfiles)
+
+      // Attach each patient's most recent scan result for a quick at-a-glance view
+      const patientsWithResults = await Promise.all(
+        patientProfiles.map(async (patient) => {
+          try {
+            const scans = await getUserScans(patient.id)
+            const latestScan = scans
+              .slice()
+              .sort((a, b) => new Date(b.date) - new Date(a.date))[0]
+            return { ...patient, latestResult: latestScan?.result || null, latestScanDate: latestScan?.date || null }
+          } catch (err) {
+            console.error(`Error loading scans for patient ${patient.id}:`, err)
+            return { ...patient, latestResult: null, latestScanDate: null }
+          }
+        }),
+      )
+
+      setPatients(patientsWithResults)
       setDoctors(doctorProfiles)
     } catch (error) {
       console.error("Error loading patient directory:", error)
@@ -97,6 +128,7 @@ export default function PatientDirectory() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Name</TableHead>
+                    <TableHead>Latest Result</TableHead>
                     <TableHead>Email</TableHead>
                     <TableHead>Age</TableHead>
                     <TableHead>Gender</TableHead>
@@ -106,23 +138,35 @@ export default function PatientDirectory() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {patients.map((patient) => (
-                    <TableRow key={patient.id}>
-                      <TableCell className="font-medium">{patient.fullName || "N/A"}</TableCell>
-                      <TableCell>{patient.email || "N/A"}</TableCell>
-                      <TableCell>{patient.age || "N/A"}</TableCell>
-                      <TableCell>{patient.gender || "N/A"}</TableCell>
-                      <TableCell>
-                        {patient.diabetesType ? (
-                          <Badge variant="outline">{patient.diabetesType}</Badge>
-                        ) : (
-                          "N/A"
-                        )}
-                      </TableCell>
-                      <TableCell>{patient.diagnosisYear || "N/A"}</TableCell>
-                      <TableCell>{patient.phone || "N/A"}</TableCell>
-                    </TableRow>
-                  ))}
+                  {patients.map((patient) => {
+                    const resultGrade = patient.latestResult?.class || patient.latestResult?.grade_label
+                    return (
+                      <TableRow key={patient.id}>
+                        <TableCell className="font-medium">{patient.fullName || "N/A"}</TableCell>
+                        <TableCell>
+                          {resultGrade ? (
+                            <Badge variant="outline" className={getResultColor(resultGrade)}>
+                              {resultGrade}
+                            </Badge>
+                          ) : (
+                            <span className="text-sm text-gray-400">No scans yet</span>
+                          )}
+                        </TableCell>
+                        <TableCell>{patient.email || "N/A"}</TableCell>
+                        <TableCell>{patient.age || "N/A"}</TableCell>
+                        <TableCell>{patient.gender || "N/A"}</TableCell>
+                        <TableCell>
+                          {patient.diabetesType ? (
+                            <Badge variant="outline">{patient.diabetesType}</Badge>
+                          ) : (
+                            "N/A"
+                          )}
+                        </TableCell>
+                        <TableCell>{patient.diagnosisYear || "N/A"}</TableCell>
+                        <TableCell>{patient.phone || "N/A"}</TableCell>
+                      </TableRow>
+                    )
+                  })}
                 </TableBody>
               </Table>
             </div>
