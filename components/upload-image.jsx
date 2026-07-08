@@ -121,17 +121,25 @@ export default function UploadImage() {
   const [uploadProgress, setUploadProgress] = useState(0)
   const [error, setError] = useState(null)
   const [errorTitle, setErrorTitle] = useState(null)
+  const [isDragging, setIsDragging] = useState(false)
   const { toast } = useToast()
 
-  const handleChange = (e) => {
-    const inputEl = e.target
-    const file = inputEl.files[0]
+  // Shared by both the file-picker input and drag-and-drop, so validation
+  // (size, quality) stays identical regardless of how the file arrived.
+  const processFile = (file, inputEl) => {
     if (!file) return
+
+    if (!file.type.startsWith("image/")) {
+      setErrorTitle("Invalid File Type")
+      setError("Please upload an image file (JPG or PNG).")
+      if (inputEl) inputEl.value = ""
+      return
+    }
 
     if (file.size > MAX_FILE_SIZE_BYTES) {
       setErrorTitle("File Too Large")
       setError(`File is too large. Maximum allowed size is ${MAX_FILE_SIZE_MB}MB.`)
-      inputEl.value = ""
+      if (inputEl) inputEl.value = ""
       return
     }
 
@@ -153,7 +161,7 @@ export default function UploadImage() {
         setError(quality.message)
         setImage(null)
         setPreview(null)
-        inputEl.value = ""
+        if (inputEl) inputEl.value = ""
         return
       }
 
@@ -161,6 +169,26 @@ export default function UploadImage() {
       setPreview(dataUrl)
     }
     reader.readAsDataURL(file)
+  }
+
+  const handleChange = (e) => {
+    processFile(e.target.files[0], e.target)
+  }
+
+  const handleDragOver = (e) => {
+    e.preventDefault()
+    setIsDragging(true)
+  }
+
+  const handleDragLeave = (e) => {
+    e.preventDefault()
+    setIsDragging(false)
+  }
+
+  const handleDrop = (e) => {
+    e.preventDefault()
+    setIsDragging(false)
+    processFile(e.dataTransfer.files?.[0])
   }
 
   const handleUpload = async () => {
@@ -304,7 +332,14 @@ export default function UploadImage() {
         )}
 
         {!image ? (
-          <div className="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-lg p-12 text-center">
+          <div
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            className={`flex flex-col items-center justify-center border-2 border-dashed rounded-lg p-12 text-center transition-colors ${
+              isDragging ? "border-blue-500 bg-blue-50" : "border-gray-300"
+            }`}
+          >
             <svg
               xmlns="http://www.w3.org/2000/svg"
               width="24"
