@@ -2,9 +2,13 @@
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "./ui/card"
 import { Badge } from "./ui/badge"
+import { Input } from "./ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/table"
 import { getUserProfile, getProfilesByRole, getUserScans } from "../firebase/firestore"
 import { useToast } from "../hooks/use-toast"
+
+const DIABETES_TYPES = ["Type 1", "Type 2", "Gestational", "Pre-diabetes", "Not diabetic"]
+const SEVERITY_LEVELS = ["No DR", "Mild", "Moderate", "Severe", "Proliferative DR"]
 
 const getResultColor = (grade) => {
   const gradeMap = {
@@ -20,11 +24,17 @@ const getResultColor = (grade) => {
   return "bg-gray-100 text-gray-800 border-gray-300"
 }
 
+const selectClassName =
+  "flex h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+
 export default function PatientDirectory() {
   const [isDoctor, setIsDoctor] = useState(null) // null = still checking
   const [patients, setPatients] = useState([])
   const [doctors, setDoctors] = useState([])
   const [isLoading, setIsLoading] = useState(true)
+  const [searchQuery, setSearchQuery] = useState("")
+  const [diabetesFilter, setDiabetesFilter] = useState("")
+  const [severityFilter, setSeverityFilter] = useState("")
   const { toast } = useToast()
 
   useEffect(() => {
@@ -112,16 +122,58 @@ export default function PatientDirectory() {
     )
   }
 
+  const filteredPatients = patients.filter((patient) => {
+    const matchesSearch = (patient.fullName || "").toLowerCase().includes(searchQuery.toLowerCase())
+    const matchesDiabetes = !diabetesFilter || patient.diabetesType === diabetesFilter
+    const resultGrade = patient.latestResult?.class || patient.latestResult?.grade_label
+    const matchesSeverity = !severityFilter || resultGrade === severityFilter
+    return matchesSearch && matchesDiabetes && matchesSeverity
+  })
+
   return (
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle>Patients ({patients.length})</CardTitle>
+          <CardTitle>Patients ({filteredPatients.length} of {patients.length})</CardTitle>
           <CardDescription>All patients registered on the platform</CardDescription>
         </CardHeader>
         <CardContent>
+          <div className="flex flex-col md:flex-row gap-3 mb-4">
+            <Input
+              placeholder="Search by name..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="md:max-w-xs"
+            />
+            <select
+              value={diabetesFilter}
+              onChange={(e) => setDiabetesFilter(e.target.value)}
+              className={selectClassName}
+            >
+              <option value="">All Diabetes Types</option>
+              {DIABETES_TYPES.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
+            <select
+              value={severityFilter}
+              onChange={(e) => setSeverityFilter(e.target.value)}
+              className={selectClassName}
+            >
+              <option value="">All Results</option>
+              {SEVERITY_LEVELS.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+          </div>
           {patients.length === 0 ? (
             <p className="text-sm text-gray-500">No patient profiles have been saved yet.</p>
+          ) : filteredPatients.length === 0 ? (
+            <p className="text-sm text-gray-500">No patients match your search/filters.</p>
           ) : (
             <div className="rounded-md border overflow-x-auto">
               <Table>
@@ -138,7 +190,7 @@ export default function PatientDirectory() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {patients.map((patient) => {
+                  {filteredPatients.map((patient) => {
                     const resultGrade = patient.latestResult?.class || patient.latestResult?.grade_label
                     return (
                       <TableRow key={patient.id}>
