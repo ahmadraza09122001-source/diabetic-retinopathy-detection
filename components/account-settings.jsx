@@ -5,18 +5,17 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "./ui/
 import { Button } from "./ui/button"
 import { Input } from "./ui/input"
 import { Label } from "./ui/label"
-import { Switch } from "./ui/switch"
-import { Separator } from "./ui/separator"
 import { Alert, AlertDescription } from "./ui/alert"
 import {
   EmailAuthProvider,
   onAuthStateChanged,
   reauthenticateWithCredential,
   updatePassword,
+  linkWithCredential,
   deleteUser,
 } from "firebase/auth"
 import { auth } from "../firebase/config"
-import { getUserProfile, saveUserProfile, deleteUserProfile, deleteAllUserScans } from "../firebase/firestore"
+import { deleteUserProfile, deleteAllUserScans } from "../firebase/firestore"
 import { useToast } from "../hooks/use-toast"
 
 export default function AccountSettings() {
@@ -32,10 +31,6 @@ export default function AccountSettings() {
   const [passwordError, setPasswordError] = useState("")
   const [isChangingPassword, setIsChangingPassword] = useState(false)
 
-  const [emailOnScanComplete, setEmailOnScanComplete] = useState(true)
-  const [emailOnSevereResult, setEmailOnSevereResult] = useState(true)
-  const [isSavingPrefs, setIsSavingPrefs] = useState(false)
-
   const [isDeleting, setIsDeleting] = useState(false)
 
   useEffect(() => {
@@ -44,23 +39,39 @@ export default function AccountSettings() {
       setHasPasswordProvider(user?.providerData?.some((p) => p.providerId === "password") ?? false)
     })
 
-    loadPreferences()
-
     return () => unsubscribe()
   }, [])
 
-  const loadPreferences = async () => {
+  const handleSetPassword = async (e) => {
+    e.preventDefault()
+    setPasswordError("")
+
+    if (newPassword !== confirmPassword) {
+      setPasswordError("Passwords do not match.")
+      return
+    }
+    if (newPassword.length < 6) {
+      setPasswordError("Password must be at least 6 characters.")
+      return
+    }
+
     try {
-      const userInfo = localStorage.getItem("user")
-      if (!userInfo) return
-      const user = JSON.parse(userInfo)
-      const profile = await getUserProfile(user.uid)
-      if (profile) {
-        if (typeof profile.emailOnScanComplete === "boolean") setEmailOnScanComplete(profile.emailOnScanComplete)
-        if (typeof profile.emailOnSevereResult === "boolean") setEmailOnSevereResult(profile.emailOnSevereResult)
-      }
+      setIsChangingPassword(true)
+      const credential = EmailAuthProvider.credential(firebaseUser.email, newPassword)
+      await linkWithCredential(firebaseUser, credential)
+      setHasPasswordProvider(true)
+
+      setNewPassword("")
+      setConfirmPassword("")
+      toast({
+        title: "Password set",
+        description: "You can now also sign in with your email and this password.",
+      })
     } catch (error) {
-      console.error("Error loading notification preferences:", error)
+      console.error("Error setting password:", error)
+      setPasswordError(error.message || "Failed to set password.")
+    } finally {
+      setIsChangingPassword(false)
     }
   }
 
@@ -96,27 +107,6 @@ export default function AccountSettings() {
       )
     } finally {
       setIsChangingPassword(false)
-    }
-  }
-
-  const handleSavePreferences = async () => {
-    try {
-      setIsSavingPrefs(true)
-      const userInfo = localStorage.getItem("user")
-      if (!userInfo) throw new Error("User not found. Please log in again.")
-      const user = JSON.parse(userInfo)
-
-      await saveUserProfile(user.uid, { emailOnScanComplete, emailOnSevereResult })
-      toast({ title: "Preferences saved", description: "Your notification preferences have been updated." })
-    } catch (error) {
-      console.error("Error saving preferences:", error)
-      toast({
-        title: "Error",
-        description: "Failed to save preferences. Please try again.",
-        variant: "destructive",
-      })
-    } finally {
-      setIsSavingPrefs(false)
     }
   }
 
@@ -168,8 +158,12 @@ export default function AccountSettings() {
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle>Change Password</CardTitle>
-          <CardDescription>Update the password used to sign in to your account</CardDescription>
+          <CardTitle>{hasPasswordProvider ? "Change Password" : "Set a Password"}</CardTitle>
+          <CardDescription>
+            {hasPasswordProvider
+              ? "Update the password used to sign in to your account"
+              : "You signed in with Google - add a password so you can also sign in with your email"}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           {hasPasswordProvider ? (
@@ -214,38 +208,37 @@ export default function AccountSettings() {
               </Button>
             </form>
           ) : (
-            <p className="text-sm text-gray-500">
-              You signed in with Google, so there's no password to change here. Manage your password through your
-              Google account instead.
-            </p>
+            <form onSubmit={handleSetPassword} className="space-y-4 max-w-md">
+              {passwordError && (
+                <Alert variant="destructive">
+                  <AlertDescription>{passwordError}</AlertDescription>
+                </Alert>
+              )}
+              <div className="space-y-2">
+                <Label htmlFor="new-password">New Password</Label>
+                <Input
+                  id="new-password"
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="confirm-password">Confirm Password</Label>
+                <Input
+                  id="confirm-password"
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  required
+                />
+              </div>
+              <Button type="submit" className="bg-blue-600 hover:bg-blue-700" disabled={isChangingPassword}>
+                {isChangingPassword ? "Setting..." : "Set Password"}
+              </Button>
+            </form>
           )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Notification Preferences</CardTitle>
-          <CardDescription>Choose when you'd like to be notified</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="font-medium text-sm">Email me when a scan completes</p>
-              <p className="text-xs text-gray-500">Get notified once your uploaded image has been analyzed</p>
-            </div>
-            <Switch checked={emailOnScanComplete} onCheckedChange={setEmailOnScanComplete} />
-          </div>
-          <Separator />
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="font-medium text-sm">Email me for Severe or Proliferative results</p>
-              <p className="text-xs text-gray-500">Extra alert for results that need urgent attention</p>
-            </div>
-            <Switch checked={emailOnSevereResult} onCheckedChange={setEmailOnSevereResult} />
-          </div>
-          <Button onClick={handleSavePreferences} className="bg-blue-600 hover:bg-blue-700" disabled={isSavingPrefs}>
-            {isSavingPrefs ? "Saving..." : "Save Preferences"}
-          </Button>
         </CardContent>
       </Card>
 

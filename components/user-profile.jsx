@@ -5,13 +5,6 @@ import { Button } from "./ui/button"
 import { Input } from "./ui/input"
 import { Label } from "./ui/label"
 import { Separator } from "./ui/separator"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "./ui/select"
 import { getUserProfile, saveUserProfile } from "../firebase/firestore"
 import { useToast } from "../hooks/use-toast"
 
@@ -200,33 +193,35 @@ export default function UserProfile() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="gender">Gender</Label>
-                  <Select value={gender} onValueChange={setGender}>
-                    <SelectTrigger id="gender">
-                      <SelectValue placeholder="Select gender" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {GENDERS.map((g) => (
-                        <SelectItem key={g} value={g}>
-                          {g}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <select
+                    id="gender"
+                    value={gender}
+                    onChange={(e) => setGender(e.target.value)}
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  >
+                    <option value="">Select gender</option>
+                    {GENDERS.map((g) => (
+                      <option key={g} value={g}>
+                        {g}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="diabetesType">Diabetes Type</Label>
-                  <Select value={diabetesType} onValueChange={setDiabetesType}>
-                    <SelectTrigger id="diabetesType">
-                      <SelectValue placeholder="Select type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {DIABETES_TYPES.map((t) => (
-                        <SelectItem key={t} value={t}>
-                          {t}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <select
+                    id="diabetesType"
+                    value={diabetesType}
+                    onChange={(e) => setDiabetesType(e.target.value)}
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  >
+                    <option value="">Select type</option>
+                    {DIABETES_TYPES.map((t) => (
+                      <option key={t} value={t}>
+                        {t}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="diagnosisYear">Year of Diagnosis</Label>
