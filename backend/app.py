@@ -35,29 +35,42 @@ DR_LABELS = {
     4: "Proliferative DR"
 }
 
-# Load model once at startup - with better error handling
+# Model is loaded lazily, on the first request that needs it - NOT at module
+# import time. Gunicorn's master process imports this module before forking
+# workers; loading TensorFlow/OpenCV there means their native thread pools get
+# initialized pre-fork, and threads holding locks at fork time don't carry
+# over to the child, leaving the worker with a permanently-locked mutex the
+# next time it calls into TF/cv2. Symptom confirmed on Render: predict()
+# hangs forever (gunicorn WORKER TIMEOUT after 300s, no progress) even with
+# every threading option disabled, because the deadlock isn't about thread
+# *count* - it's that the fork happened after the library was already live.
+# Loading inside the request handler guarantees it only ever happens in the
+# already-forked worker process.
 model = None
-try:
-    logger.info("Current working directory: " + os.getcwd())
-    logger.info("Looking for .keras files...")
-    for file in os.listdir('.'):
-        if file.endswith('.keras'):
-            logger.info(f"Found .keras file: {file}")
-    
-    model = Model()
-    logger.info("Model loaded successfully")
-except Exception as e:
-    tb = traceback.format_exc()
-    logger.error(f"Failed to load model:\n{tb}")
+
+def get_model():
+    global model
+    if model is None:
+        logger.info("Loading model (first request in this worker)...")
+        logger.info("Current working directory: " + os.getcwd())
+        for file in os.listdir('.'):
+            if file.endswith('.keras'):
+                logger.info(f"Found .keras file: {file}")
+        model = Model()
+        logger.info("Model loaded successfully")
+    return model
 
 @app.route('/predict', methods=['POST'])
 def predict():
     start_time = time.time()
     logger.info("Received prediction request")
 
-    if model is None:
-        logger.warning("Model not loaded")
-        return jsonify({'error': 'Model not loaded'}), 500
+    try:
+        m = get_model()
+    except Exception as e:
+        tb = traceback.format_exc()
+        logger.error(f"Failed to load model:\n{tb}")
+        return jsonify({'error': 'Model failed to load'}), 500
 
     if 'image' not in request.files:
         logger.warning("No image provided")
@@ -73,7 +86,7 @@ def predict():
         logger.info(f"Image received: {file.filename}, size: {img.size}")
 
         predict_start = time.time()
-        predicted_class, confidence, confidence_dict = model.predict(img)
+        predicted_class, confidence, confidence_dict = m.predict(img)
         predict_duration = time.time() - predict_start
         total_duration = time.time() - start_time
 
