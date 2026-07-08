@@ -11,8 +11,10 @@ import ScanHistory from "@/components/scan-history"
 import ScanAnalytics from "@/components/scan-analytics"
 import UserProfile from "@/components/user-profile"
 import AccountSettings from "@/components/account-settings"
+import PatientDirectory from "@/components/patient-directory"
 import AuthCheck from "@/components/auth-check"
 import { auth, db, googleProvider, storage } from "@/lib/firebase"
+import { getUserProfile } from "@/firebase/firestore"
 
 
 
@@ -92,6 +94,26 @@ const UserIcon = () => (
   </svg>
 )
 
+const DirectoryIcon = () => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width="24"
+    height="24"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className="h-5 w-5 mr-2"
+  >
+    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+    <circle cx="9" cy="7" r="4" />
+    <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+    <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+  </svg>
+)
+
 const SettingsIcon = () => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
@@ -136,17 +158,18 @@ export default function Dashboard() {
   const [isLoading, setIsLoading] = useState(true)
   const [activeTab, setActiveTab] = useState("upload")
   const [notification, setNotification] = useState(null)
+  const [isDoctor, setIsDoctor] = useState(false)
 
   useEffect(() => {
     // Check URL params for tab selection
     const tabParam = searchParams.get("tab")
-    if (tabParam && ["upload", "history", "analytics", "profile", "settings"].includes(tabParam)) {
+    if (tabParam && ["upload", "history", "analytics", "profile", "settings", "directory"].includes(tabParam)) {
       setActiveTab(tabParam)
     }
 
     // Listen for custom events to change tabs
     const handleSetTab = (event) => {
-      if (event.detail && ["upload", "history", "analytics", "profile", "settings"].includes(event.detail)) {
+      if (event.detail && ["upload", "history", "analytics", "profile", "settings", "directory"].includes(event.detail)) {
         setActiveTab(event.detail)
       }
     }
@@ -177,6 +200,10 @@ export default function Dashboard() {
         if (parsedUser.isLoggedIn && parsedUser.emailVerified) {
           setUser(parsedUser)
           setIsLoading(false)
+
+          getUserProfile(parsedUser.uid)
+            .then((profile) => setIsDoctor(profile?.role === "doctor"))
+            .catch((err) => console.error("Error checking doctor role:", err))
         } else if (parsedUser.isLoggedIn && !parsedUser.emailVerified) {
           // If email is not verified, redirect to verification page
           console.log("Email not verified, redirecting to verification page")
@@ -265,6 +292,16 @@ export default function Dashboard() {
                     <AnalyticsIcon />
                     Analytics
                   </Button>
+                  {isDoctor && (
+                    <Button
+                      variant={activeTab === "directory" ? "default" : "ghost"}
+                      className="w-full justify-start"
+                      onClick={() => setActiveTab("directory")}
+                    >
+                      <DirectoryIcon />
+                      Patient Directory
+                    </Button>
+                  )}
                   <Button
                     variant={activeTab === "profile" ? "default" : "ghost"}
                     className="w-full justify-start"
@@ -299,6 +336,7 @@ export default function Dashboard() {
             {activeTab === "upload" && <UploadImage />}
             {activeTab === "history" && <ScanHistory />}
             {activeTab === "analytics" && <ScanAnalytics />}
+            {activeTab === "directory" && <PatientDirectory />}
             {activeTab === "profile" && <UserProfile />}
             {activeTab === "settings" && <AccountSettings />}
           </div>

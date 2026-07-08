@@ -206,6 +206,20 @@ export async function deleteUserProfile(userId) {
   return { success: true }
 }
 
+// Only succeeds for callers whose own profile has role "doctor" - enforced by
+// Firestore security rules, not just this client-side query.
+export async function getProfilesByRole(role) {
+  const profilesCollection = collection(db, "profiles")
+  const q = query(profilesCollection, where("role", "==", role))
+  const querySnapshot = await getDocs(q)
+
+  const profiles = []
+  querySnapshot.forEach((docSnap) => {
+    profiles.push({ id: docSnap.id, ...docSnap.data() })
+  })
+  return profiles
+}
+
 // Deletes every scan document belonging to this user - used when a user
 // deletes their account, so no orphaned data is left behind in Firestore.
 export async function deleteAllUserScans(userId) {

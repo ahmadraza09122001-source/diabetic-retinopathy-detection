@@ -91,6 +91,7 @@ export default function UserProfile() {
       const profileData = {
         role,
         fullName,
+        email,
         phone,
         ...(role === "patient"
           ? { age, gender, diabetesType, diagnosisYear }
