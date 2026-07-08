@@ -1,0 +1,25 @@
+datasource db {
+  provider = "postgresql"  // Change this if you're using a different database
+  url      = env("DATABASE_URL")  // Reads the database URL from .env
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id       String  @id @default(uuid())
+  name     String
+  email    String  @unique
+  password String
+  scans    Scan[]
+}
+
+model Scan {
+  id       String  @id @default(uuid())
+  userId   String
+  user     User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  imageUrl String
+  result   String
+  createdAt DateTime @default(now())
+}

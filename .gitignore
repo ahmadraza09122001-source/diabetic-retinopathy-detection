@@ -1,0 +1,43 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# env files
+.env*
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# Python (backend) - virtual envs and models are uploaded separately to
+# Hugging Face Spaces, not through GitHub (venvs are huge, models can exceed
+# GitHub's 100MB per-file limit)
+backend/venv/
+backend/venv_old_ensemble_broken/
+backend/__pycache__/
+*.pyc
+*.keras
+*.log
+
+# MinGit (portable git, not part of the project)
+MinGit/
+
+# Claude Code local session config
+.claude/
