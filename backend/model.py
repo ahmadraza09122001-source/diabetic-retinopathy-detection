@@ -1,20 +1,30 @@
 import os
+
+# Must be set BEFORE `import tensorflow` - oneDNN reads these via OpenMP at
+# native library load time, so setting them afterward (or only via the
+# tf.config.threading API) is too late to have any effect.
+#
+# oneDNN's OpenMP threads default to the HOST machine's full logical CPU
+# count even inside a container with a much smaller CPU quota (e.g. Render's
+# 1-vCPU instances). Under a cgroup quota, those extra threads can't actually
+# get scheduled, so oneDNN spin-waits/convoys on them - turning a ~1-2s CPU
+# inference into a multi-minute hang or effectively-permanent stall (confirmed:
+# caused gunicorn WORKER TIMEOUT/SIGKILL after 300s on Render, worked fine
+# locally where full CPU is available). Disabling oneDNN outright and forcing
+# single-threaded execution avoids the convoy entirely.
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
+os.environ['OMP_NUM_THREADS'] = '1'
+os.environ['TF_NUM_INTRAOP_THREADS'] = '1'
+os.environ['TF_NUM_INTEROP_THREADS'] = '1'
+
 import numpy as np
 import cv2
 from PIL import Image
 import tensorflow as tf
 import logging
 
-# Reduce TensorFlow logs
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 tf.get_logger().setLevel('ERROR')
-
-# Cap TF's thread pools. Without this, TF auto-detects the HOST machine's
-# full logical CPU count even inside a container with a much smaller CPU
-# quota (e.g. Render's 1-vCPU instances), then oversubscribes threads far
-# beyond what's actually available. The resulting contention can turn a
-# ~1-2s CPU inference into a multi-minute hang (confirmed: caused gunicorn
-# WORKER TIMEOUT/SIGKILL after 300s on Render, worked fine locally).
 tf.config.threading.set_intra_op_parallelism_threads(1)
 tf.config.threading.set_inter_op_parallelism_threads(1)
 
