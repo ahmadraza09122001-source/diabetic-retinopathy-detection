@@ -20,6 +20,14 @@ os.environ['TF_NUM_INTEROP_THREADS'] = '1'
 
 import numpy as np
 import cv2
+
+# OpenCV's own internal thread pool (TBB/pthreads) is a separate mechanism
+# from TensorFlow's, and has the same known failure mode under cgroup CPU
+# quotas: it can hang indefinitely instead of just running slowly. This is a
+# widely-reported Docker/Kubernetes issue with the standard fix being exactly
+# this call, placed immediately after import.
+cv2.setNumThreads(1)
+
 from PIL import Image
 import tensorflow as tf
 import logging
@@ -28,10 +36,10 @@ tf.get_logger().setLevel('ERROR')
 tf.config.threading.set_intra_op_parallelism_threads(1)
 tf.config.threading.set_inter_op_parallelism_threads(1)
 
-# Configure logging
+# Configure logging (include PID to distinguish gunicorn master vs worker)
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    format='%(asctime)s - PID:%(process)d - %(name)s - %(levelname)s - %(message)s',
     handlers=[
         logging.FileHandler("model.log"),
         logging.StreamHandler()
