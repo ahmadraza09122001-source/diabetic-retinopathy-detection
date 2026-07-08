@@ -4,3 +4,4 @@ flask==3.1.3
 flask-cors==6.0.5
 pillow==12.3.0
 opencv-python==5.0.0.93
+gunicorn==22.0.0
