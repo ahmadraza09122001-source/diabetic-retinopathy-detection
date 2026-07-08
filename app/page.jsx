@@ -115,7 +115,7 @@ export default function Home() {
           <div className="grid md:grid-cols-3 gap-10">
             <FeatureCard
               icon={<UploadIcon />}
-              title="Upload Retina Image for AI-Based Detection"
+              title="Upload Retinal Image for AI-Based Detection"
               description="Securely upload your retinal images and receive instant AI-powered analysis and detection results."
             />
             <FeatureCard

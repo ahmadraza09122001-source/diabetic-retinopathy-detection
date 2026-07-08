@@ -26,6 +26,33 @@ const getResultColor = (grade) => {
   return "bg-gray-100 text-gray-800 border-gray-300"
 }
 
+// Firestore rejects any document over 1,048,487 bytes, and a full-resolution
+// upload (up to MAX_FILE_SIZE_MB, base64-inflated ~33%) blows past that on its
+// own. Scan history only ever needs a small thumbnail, so downscale + recompress
+// before saving instead of storing the original image.
+const createThumbnail = (dataUrl, maxDim = 400, quality = 0.6) => {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    img.onload = () => {
+      let { width, height } = img
+      if (width > height && width > maxDim) {
+        height = Math.round((height * maxDim) / width)
+        width = maxDim
+      } else if (height >= width && height > maxDim) {
+        width = Math.round((width * maxDim) / height)
+        height = maxDim
+      }
+      const canvas = document.createElement("canvas")
+      canvas.width = width
+      canvas.height = height
+      canvas.getContext("2d").drawImage(img, 0, 0, width, height)
+      resolve(canvas.toDataURL("image/jpeg", quality))
+    }
+    img.onerror = () => reject(new Error("Failed to load image for thumbnail"))
+    img.src = dataUrl
+  })
+}
+
 export default function UploadImage() {
   const [image, setImage] = useState(null)
   const [preview, setPreview] = useState(null)
@@ -112,13 +139,22 @@ export default function UploadImage() {
 
       const user = JSON.parse(userInfo)
 
+      // Downscale before saving - Firestore rejects documents over ~1MB and a
+      // full-resolution upload can exceed that on its own.
+      let thumbnail = null
+      try {
+        thumbnail = await createThumbnail(preview)
+      } catch (thumbErr) {
+        console.error("Thumbnail generation failed:", thumbErr)
+      }
+
       // Save to Firestore
       console.log("Attempting to save scan to Firestore with user ID:", user.uid)
       await saveScan(user.uid, {
         fileName: image?.name || "Unknown",
         fileSize: image?.size || 0,
         result: data,
-        imagePreview: preview,
+        imagePreview: thumbnail,
       })
       console.log("Scan saved successfully to Firestore")
 
@@ -150,7 +186,7 @@ export default function UploadImage() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Upload Retina Image</CardTitle>
+        <CardTitle>Upload Retinal Image</CardTitle>
       </CardHeader>
       <CardContent>
         {error && (
