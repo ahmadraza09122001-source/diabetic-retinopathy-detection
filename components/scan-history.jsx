@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "./ui/
 import { Button } from "./ui/button"
 import { Badge } from "./ui/badge"
 import { Separator } from "./ui/separator"
-import { getUserScans, deleteScan } from "../firebase/firestore"
+import { getUserScans, deleteScan, getUserProfile } from "../firebase/firestore"
 import { useToast } from "../hooks/use-toast"
 import { generateScanReportPDF } from "../lib/pdf-report"
 
@@ -123,14 +123,21 @@ export default function ScanHistory() {
     setSelectedScan(scan)
   }
 
-  const handleDownloadReport = (scan) => {
+  const handleDownloadReport = async (scan) => {
     try {
       const userInfo = localStorage.getItem("user")
       const user = userInfo ? JSON.parse(userInfo) : null
+      const profile = user?.uid ? await getUserProfile(user.uid) : null
 
       generateScanReportPDF({
-        patientName: user?.fullName,
-        patientEmail: user?.email,
+        // Older scans saved before patient name/age were collected fall back
+        // to the account's own name.
+        patientName: scan.patientName || user?.fullName,
+        patientAge: scan.patientAge,
+        gender: profile?.role === "patient" ? profile.gender : undefined,
+        diabetesType: profile?.role === "patient" ? profile.diabetesType : undefined,
+        diagnosisYear: profile?.role === "patient" ? profile.diagnosisYear : undefined,
+        phone: profile?.phone,
         fileName: scan.fileName,
         date: scan.date,
         imageDataUrl: scan.imagePreview || scan.imageUrl,
@@ -261,7 +268,7 @@ export default function ScanHistory() {
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{scan.fileName}</p>
+                      <p className="text-sm font-medium truncate">{scan.patientName || scan.fileName}</p>
                       <p className="text-xs text-gray-500">{formatDate(scan.date)}</p>
                       <div className="mt-1">
                         <Badge
@@ -310,8 +317,9 @@ export default function ScanHistory() {
         {selectedScan ? (
           <Card>
             <CardHeader>
-              <CardTitle>Scan Details</CardTitle>
+              <CardTitle>{selectedScan.patientName || "Scan Details"}</CardTitle>
               <CardDescription>
+                {selectedScan.patientAge && `Age ${selectedScan.patientAge} • `}
                 {selectedScan.fileName} • {formatDate(selectedScan.date)}
               </CardDescription>
             </CardHeader>

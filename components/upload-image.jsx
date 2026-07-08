@@ -1,10 +1,12 @@
 "use client"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "./ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card"
+import { Input } from "./ui/input"
+import { Label } from "./ui/label"
 import { Progress } from "./ui/progress"
 import { Alert, AlertTitle, AlertDescription } from "./ui/alert"
-import { saveScan } from "../firebase/firestore"
+import { saveScan, getUserProfile } from "../firebase/firestore"
 import { useToast } from "../hooks/use-toast"
 import { generateScanReportPDF } from "../lib/pdf-report"
 // Update the import for FirestoreTest
@@ -122,7 +124,30 @@ export default function UploadImage() {
   const [error, setError] = useState(null)
   const [errorTitle, setErrorTitle] = useState(null)
   const [isDragging, setIsDragging] = useState(false)
+  const [patientName, setPatientName] = useState("")
+  const [patientAge, setPatientAge] = useState("")
+  const [savedProfile, setSavedProfile] = useState(null)
   const { toast } = useToast()
+
+  // Pre-fill patient name/age from the saved profile (if this account has one)
+  // so a patient scanning their own image doesn't have to retype it - a doctor
+  // scanning on behalf of someone else can just overwrite these fields.
+  useEffect(() => {
+    const userInfo = localStorage.getItem("user")
+    if (!userInfo) return
+    const user = JSON.parse(userInfo)
+
+    setPatientName(user.fullName || "")
+
+    getUserProfile(user.uid)
+      .then((profile) => {
+        if (!profile) return
+        setSavedProfile(profile)
+        if (profile.fullName) setPatientName(profile.fullName)
+        if (profile.role === "patient" && profile.age) setPatientAge(String(profile.age))
+      })
+      .catch((err) => console.error("Error loading profile for upload form:", err))
+  }, [])
 
   // Shared by both the file-picker input and drag-and-drop, so validation
   // (size, quality) stays identical regardless of how the file arrived.
@@ -198,6 +223,12 @@ export default function UploadImage() {
       return
     }
 
+    if (!patientName.trim() || !patientAge.trim()) {
+      setErrorTitle("Patient Information Required")
+      setError("Please enter the patient's name and age before starting the analysis.")
+      return
+    }
+
     try {
       setIsLoading(true)
       setError(null)
@@ -265,6 +296,8 @@ export default function UploadImage() {
         fileSize: image?.size || 0,
         result: data,
         imagePreview: thumbnail,
+        patientName: patientName.trim(),
+        patientAge: patientAge.trim(),
       })
       console.log("Scan saved successfully to Firestore")
 
@@ -297,12 +330,13 @@ export default function UploadImage() {
 
   const handleDownloadReport = () => {
     try {
-      const userInfo = localStorage.getItem("user")
-      const user = userInfo ? JSON.parse(userInfo) : null
-
       generateScanReportPDF({
-        patientName: user?.fullName,
-        patientEmail: user?.email,
+        patientName,
+        patientAge,
+        gender: savedProfile?.role === "patient" ? savedProfile.gender : undefined,
+        diabetesType: savedProfile?.role === "patient" ? savedProfile.diabetesType : undefined,
+        diagnosisYear: savedProfile?.role === "patient" ? savedProfile.diagnosisYear : undefined,
+        phone: savedProfile?.phone,
         fileName: image?.name,
         date: new Date().toISOString(),
         imageDataUrl: preview,
@@ -397,6 +431,36 @@ export default function UploadImage() {
                 </svg>
               </Button>
             </div>
+
+            {!result && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg border">
+                <div className="space-y-2">
+                  <Label htmlFor="patient-name">Patient Name</Label>
+                  <Input
+                    id="patient-name"
+                    value={patientName}
+                    onChange={(e) => setPatientName(e.target.value)}
+                    placeholder="Enter patient's full name"
+                    disabled={isLoading}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="patient-age">Patient Age</Label>
+                  <Input
+                    id="patient-age"
+                    type="number"
+                    min="0"
+                    max="120"
+                    value={patientAge}
+                    onChange={(e) => setPatientAge(e.target.value)}
+                    placeholder="Enter patient's age"
+                    disabled={isLoading}
+                    required
+                  />
+                </div>
+              </div>
+            )}
 
             {isLoading && (
               <div className="space-y-2">
