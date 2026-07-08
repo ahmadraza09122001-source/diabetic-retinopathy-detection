@@ -5,6 +5,8 @@ import { Badge } from "./ui/badge"
 import {
   BarChart,
   Bar,
+  LineChart,
+  Line,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -21,10 +23,18 @@ import { useToast } from "../hooks/use-toast"
 // Colors for the pie chart
 const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884d8"]
 
+// Numeric severity scale used for the trend chart's Y axis
+const SEVERITY_LABELS = ["No DR", "Mild", "Moderate", "Severe", "Proliferative DR"]
+const severityScore = (grade) => {
+  const idx = SEVERITY_LABELS.indexOf(grade)
+  return idx === -1 ? 0 : idx
+}
+
 export default function ScanAnalytics() {
   const [analytics, setAnalytics] = useState(null)
   const [monthlyData, setMonthlyData] = useState([])
   const [distributionData, setDistributionData] = useState([])
+  const [trendData, setTrendData] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const { toast } = useToast()
 
@@ -73,6 +83,21 @@ export default function ScanAnalytics() {
         .filter((item) => item.value > 0) // Only include non-zero values
 
       setDistributionData(distributionChartData)
+
+      // Process severity trend across individual scans, oldest to newest
+      const trendChartData = (analyticsData.scans || [])
+        .slice()
+        .sort((a, b) => new Date(a.date) - new Date(b.date))
+        .map((scan) => {
+          const grade = scan.result?.class || scan.result?.grade_label || "No DR"
+          return {
+            date: new Date(scan.date).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+            severity: severityScore(grade),
+            grade,
+          }
+        })
+
+      setTrendData(trendChartData)
     } catch (error) {
       console.error("Error loading analytics:", error)
       toast({
@@ -326,6 +351,40 @@ export default function ScanAnalytics() {
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Severity Trend Over Time</CardTitle>
+          <CardDescription>Track how your DR grade changes across scans, oldest to newest</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="h-80">
+            {trendData.length > 1 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={trendData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="date" />
+                  <YAxis
+                    domain={[0, 4]}
+                    ticks={[0, 1, 2, 3, 4]}
+                    tickFormatter={(value) => SEVERITY_LABELS[value]}
+                    width={110}
+                  />
+                  <Tooltip
+                    formatter={(_value, _name, props) => [props.payload.grade, "Diagnosis"]}
+                    labelFormatter={(label) => `Scan date: ${label}`}
+                  />
+                  <Line type="monotone" dataKey="severity" stroke="#ef4444" strokeWidth={2} dot={{ r: 4 }} />
+                </LineChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex items-center justify-center h-full">
+                <p className="text-gray-500">Need at least 2 scans to show a trend</p>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

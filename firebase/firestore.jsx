@@ -144,6 +144,7 @@ export async function getUserAnalytics(userId) {
       totalScans,
       drGrades,
       monthlyScans,
+      scans,
     }
 
     console.log("Generated analytics:", analytics)

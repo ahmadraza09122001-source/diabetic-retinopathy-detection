@@ -6,6 +6,7 @@ import { Badge } from "./ui/badge"
 import { Separator } from "./ui/separator"
 import { getUserScans, deleteScan } from "../firebase/firestore"
 import { useToast } from "../hooks/use-toast"
+import { generateScanReportPDF } from "../lib/pdf-report"
 
 export default function ScanHistory() {
   const [history, setHistory] = useState([])
@@ -120,6 +121,29 @@ export default function ScanHistory() {
 
   const handleViewScan = (scan) => {
     setSelectedScan(scan)
+  }
+
+  const handleDownloadReport = (scan) => {
+    try {
+      const userInfo = localStorage.getItem("user")
+      const user = userInfo ? JSON.parse(userInfo) : null
+
+      generateScanReportPDF({
+        patientName: user?.fullName,
+        patientEmail: user?.email,
+        fileName: scan.fileName,
+        date: scan.date,
+        imageDataUrl: scan.imagePreview || scan.imageUrl,
+        result: scan.result,
+      })
+    } catch (error) {
+      console.error("Failed to generate PDF report:", error)
+      toast({
+        title: "Error",
+        description: "Failed to generate the PDF report. Please try again.",
+        variant: "destructive",
+      })
+    }
   }
 
   const formatDate = (dateString) => {
@@ -408,6 +432,15 @@ export default function ScanHistory() {
                           )}
                         </div>
                       </div>
+
+                      <Button
+                        onClick={() => handleDownloadReport(selectedScan)}
+                        variant="outline"
+                        size="sm"
+                        className="w-full"
+                      >
+                        Download Report (PDF)
+                      </Button>
                     </div>
                   </div>
                 </div>

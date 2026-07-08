@@ -6,6 +6,7 @@ import { Progress } from "./ui/progress"
 import { Alert, AlertDescription } from "./ui/alert"
 import { saveScan } from "../firebase/firestore"
 import { useToast } from "../hooks/use-toast"
+import { generateScanReportPDF } from "../lib/pdf-report"
 // Update the import for FirestoreTest
 import FirestoreTest from "./firestore-test"
 
@@ -183,6 +184,29 @@ export default function UploadImage() {
     setUploadProgress(0)
   }
 
+  const handleDownloadReport = () => {
+    try {
+      const userInfo = localStorage.getItem("user")
+      const user = userInfo ? JSON.parse(userInfo) : null
+
+      generateScanReportPDF({
+        patientName: user?.fullName,
+        patientEmail: user?.email,
+        fileName: image?.name,
+        date: new Date().toISOString(),
+        imageDataUrl: preview,
+        result,
+      })
+    } catch (err) {
+      console.error("Failed to generate PDF report:", err)
+      toast({
+        title: "Error",
+        description: "Failed to generate the PDF report. Please try again.",
+        variant: "destructive",
+      })
+    }
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -313,7 +337,10 @@ export default function UploadImage() {
                     </p>
                   )}
                 </div>
-                <div className="mt-4">
+                <div className="mt-4 flex gap-2">
+                  <Button onClick={handleDownloadReport} variant="outline" size="sm">
+                    Download Report (PDF)
+                  </Button>
                   <Button onClick={handleClear} variant="outline" size="sm">
                     Upload New Image
                   </Button>
