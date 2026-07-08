@@ -33,8 +33,15 @@ class NotARetinaImageError(Exception):
 #   dr_model_working (best_eff_focal): 64.0%
 #   dr_model_2 (final_eff_model):      58.0%
 #   dr_model_3 (best_eff_b3):          65.5%
-#   equal-weight average of all 3:     70.0%  <- best, used here
-MODEL_FILES = ["dr_model_working.keras", "dr_model_2.keras", "dr_model_3.keras"]
+#   equal-weight average of all 3:     70.0%  <- best, used when memory allows
+#
+# All 3 loaded at once needs more RAM than a 512MB host provides (confirmed:
+# OOM on Render's Starter plan). Set LOW_MEMORY_MODE=1 to load only the single
+# best-performing model (64% accuracy) instead of the full ensemble.
+if os.environ.get("LOW_MEMORY_MODE") == "1":
+    MODEL_FILES = ["dr_model_working.keras"]
+else:
+    MODEL_FILES = ["dr_model_working.keras", "dr_model_2.keras", "dr_model_3.keras"]
 
 
 class Model:
