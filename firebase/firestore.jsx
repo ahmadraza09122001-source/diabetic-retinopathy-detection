@@ -1,6 +1,17 @@
 "use client"
 
-import { collection, addDoc, getDocs, query, where, deleteDoc, doc, getDoc, serverTimestamp } from "firebase/firestore"
+import {
+  collection,
+  addDoc,
+  getDocs,
+  query,
+  where,
+  deleteDoc,
+  doc,
+  getDoc,
+  setDoc,
+  serverTimestamp,
+} from "firebase/firestore"
 import { db } from "./config"
 
 export async function saveScan(userId, scanData) {
@@ -164,4 +175,44 @@ export async function getUserAnalytics(userId) {
       monthlyScans: {},
     }
   }
+}
+
+export async function getUserProfile(userId) {
+  if (!userId) throw new Error("User ID is required to get profile")
+
+  const profileRef = doc(db, "profiles", userId)
+  const snapshot = await getDoc(profileRef)
+  return snapshot.exists() ? snapshot.data() : null
+}
+
+export async function saveUserProfile(userId, profileData) {
+  if (!userId) throw new Error("User ID is required to save profile")
+
+  const profileRef = doc(db, "profiles", userId)
+  await setDoc(
+    profileRef,
+    {
+      ...profileData,
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true },
+  )
+  return { success: true }
+}
+
+export async function deleteUserProfile(userId) {
+  if (!userId) throw new Error("User ID is required to delete profile")
+  await deleteDoc(doc(db, "profiles", userId))
+  return { success: true }
+}
+
+// Deletes every scan document belonging to this user - used when a user
+// deletes their account, so no orphaned data is left behind in Firestore.
+export async function deleteAllUserScans(userId) {
+  if (!userId) throw new Error("User ID is required to delete scans")
+  const scans = await getUserScans(userId)
+  for (const scan of scans) {
+    await deleteScan(scan.id, userId)
+  }
+  return { success: true, count: scans.length }
 }
