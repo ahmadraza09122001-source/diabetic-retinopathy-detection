@@ -367,35 +367,6 @@ export default function ScanHistory() {
 
                     <div className="space-y-4">
                       <div>
-                        <h4 className="text-sm font-medium text-gray-500 mb-2">Confidence Scores</h4>
-                        {selectedScan.result.confidence && typeof selectedScan.result.confidence === "object" ? (
-                          <div className="space-y-2">
-                            {Object.entries(selectedScan.result.confidence).map(([label, score]) => (
-                              <div key={label} className="flex items-center justify-between">
-                                <span className="text-sm">{label}</span>
-                                <div className="flex items-center">
-                                  <div className="w-32 bg-gray-200 rounded-full h-2 mr-2">
-                                    <div
-                                      className="bg-blue-600 h-2 rounded-full"
-                                      style={{ width: `${score * 100}%` }}
-                                    ></div>
-                                  </div>
-                                  <span className="text-sm font-medium">{(score * 100).toFixed(2)}%</span>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <p className="text-sm">
-                            Confidence:{" "}
-                            {typeof selectedScan.result.confidence === "number"
-                              ? `${(selectedScan.result.confidence * 100).toFixed(2)}%`
-                              : "N/A"}
-                          </p>
-                        )}
-                      </div>
-
-                      <div>
                         <h4 className="text-sm font-medium text-gray-500 mb-2">Recommendations</h4>
                         <div className="p-3 bg-white rounded border text-sm">
                           {selectedScan.result.class === "No DR" ||

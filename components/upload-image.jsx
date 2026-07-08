@@ -417,44 +417,11 @@ export default function UploadImage() {
             {result && (
               <div className="mt-4 p-4 bg-gray-50 rounded-lg">
                 <div
-                  className={`flex items-center justify-between px-4 py-3 rounded-lg border mb-4 ${getResultColor(
+                  className={`flex items-center px-4 py-3 rounded-lg border mb-4 ${getResultColor(
                     result.class || result.grade_label,
                   )}`}
                 >
                   <span className="font-semibold">Result: {result.class || result.grade_label || "Unknown"}</span>
-                  {result.confidence && (
-                    <span className="text-sm font-medium">
-                      {(
-                        (typeof result.confidence === "object"
-                          ? Math.max(...Object.values(result.confidence))
-                          : result.confidence) * 100
-                      ).toFixed(1)}
-                      % confidence
-                    </span>
-                  )}
-                </div>
-                <h3 className="font-semibold text-lg mb-2">Prediction: {result.class || result.grade_label}</h3>
-                <div className="space-y-2">
-                  {result.confidence && typeof result.confidence === "object" ? (
-                    Object.entries(result.confidence).map(([label, score]) => (
-                      <div key={label} className="flex items-center justify-between">
-                        <span className="text-sm">{label}</span>
-                        <div className="flex items-center">
-                          <div className="w-32 bg-gray-200 rounded-full h-2 mr-2">
-                            <div className="bg-blue-600 h-2 rounded-full" style={{ width: `${score * 100}%` }}></div>
-                          </div>
-                          <span className="text-sm font-medium">{(score * 100).toFixed(2)}%</span>
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <p>
-                      Confidence:{" "}
-                      {typeof result.confidence === "number"
-                        ? `${(result.confidence * 100).toFixed(2)}%`
-                        : JSON.stringify(result.confidence)}
-                    </p>
-                  )}
                 </div>
                 <div className="mt-4 flex gap-2">
                   <Button onClick={handleDownloadReport} variant="outline" size="sm">
