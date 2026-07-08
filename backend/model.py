@@ -9,6 +9,15 @@ import logging
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 tf.get_logger().setLevel('ERROR')
 
+# Cap TF's thread pools. Without this, TF auto-detects the HOST machine's
+# full logical CPU count even inside a container with a much smaller CPU
+# quota (e.g. Render's 1-vCPU instances), then oversubscribes threads far
+# beyond what's actually available. The resulting contention can turn a
+# ~1-2s CPU inference into a multi-minute hang (confirmed: caused gunicorn
+# WORKER TIMEOUT/SIGKILL after 300s on Render, worked fine locally).
+tf.config.threading.set_intra_op_parallelism_threads(1)
+tf.config.threading.set_inter_op_parallelism_threads(1)
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
