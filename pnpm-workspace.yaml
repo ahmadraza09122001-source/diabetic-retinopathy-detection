@@ -2,7 +2,8 @@ allowBuilds:
   '@firebase/util': false
   '@prisma/client': false
   '@prisma/engines': false
-  bcrypt: false
+  bcrypt: true
+  core-js: false
   prisma: false
   protobufjs: false
   sharp: false
