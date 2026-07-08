@@ -19,6 +19,7 @@ import {
   signInWithEmailAndPassword,
   GoogleAuthProvider,
   signInWithPopup,
+  sendPasswordResetEmail,
 } from "firebase/auth"
 
 // Firebase configuration
@@ -47,6 +48,31 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+
+  const [showForgotPassword, setShowForgotPassword] = useState(false)
+  const [resetEmail, setResetEmail] = useState("")
+  const [resetMessage, setResetMessage] = useState("")
+  const [resetError, setResetError] = useState("")
+  const [isResetting, setIsResetting] = useState(false)
+
+  const handleForgotPassword = async (e) => {
+    e.preventDefault()
+    setResetError("")
+    setResetMessage("")
+    setIsResetting(true)
+
+    try {
+      await sendPasswordResetEmail(auth, resetEmail)
+      setResetMessage(
+        "If an account exists for this email, a password reset link has been sent. Check your inbox (and spam folder).",
+      )
+    } catch (err) {
+      setResetError(err.message || "Failed to send reset email. Please try again.")
+    } finally {
+      setIsResetting(false)
+    }
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError("")
@@ -121,76 +147,142 @@ export default function Login() {
           </CardHeader>
 
           <CardContent>
-            {error && (
-              <Alert variant="destructive" className="mb-4">
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            )}
+            {showForgotPassword ? (
+              <>
+                <p className="text-sm text-gray-500 mb-4">
+                  Enter your account email and we'll send you a link to reset your password.
+                </p>
 
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="name@example.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="pl-10"
-                    required
-                  />
-                </div>
-              </div>
+                {resetError && (
+                  <Alert variant="destructive" className="mb-4">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>{resetError}</AlertDescription>
+                  </Alert>
+                )}
 
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                  <Input
-                    id="password"
-                    type={showPassword ? "text" : "password"}
-                    placeholder="••••••••"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="pl-10"
-                    required
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="absolute right-0 top-0 h-10 w-10 text-gray-400"
-                    onClick={() => setShowPassword(!showPassword)}
-                  >
-                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                {resetMessage && (
+                  <Alert className="mb-4">
+                    <AlertDescription>{resetMessage}</AlertDescription>
+                  </Alert>
+                )}
+
+                <form onSubmit={handleForgotPassword} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="reset-email">Email</Label>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                      <Input
+                        id="reset-email"
+                        type="email"
+                        placeholder="name@example.com"
+                        value={resetEmail}
+                        onChange={(e) => setResetEmail(e.target.value)}
+                        className="pl-10"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700" disabled={isResetting}>
+                    {isResetting ? "Sending..." : "Send Reset Link"}
                   </Button>
-                </div>
-              </div>
+                </form>
 
-              <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700" disabled={isLoading}>
-                {isLoading ? "Logging in..." : "Login"}
-              </Button>
-            </form>
+                <button
+                  type="button"
+                  className="mt-4 text-sm text-blue-600 hover:underline w-full text-center"
+                  onClick={() => {
+                    setShowForgotPassword(false)
+                    setResetError("")
+                    setResetMessage("")
+                  }}
+                >
+                  Back to Login
+                </button>
+              </>
+            ) : (
+              <>
+                {error && (
+                  <Alert variant="destructive" className="mb-4">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>{error}</AlertDescription>
+                  </Alert>
+                )}
 
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full mt-4"
-              onClick={handleGoogleLogin}
-              disabled={isLoading}
-            >
-              Sign in with Google
-            </Button>
+                <form onSubmit={handleSubmit} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="email">Email</Label>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                      <Input
+                        id="email"
+                        type="email"
+                        placeholder="name@example.com"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        className="pl-10"
+                        required
+                      />
+                    </div>
+                  </div>
 
-            <p className="mt-4 text-center text-sm">
-              Don't have an account?{" "}
-              <Link href="/signup" className="text-blue-600 hover:underline">
-                Sign Up
-              </Link>
-            </p>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="password">Password</Label>
+                      <button
+                        type="button"
+                        className="text-xs text-blue-600 hover:underline"
+                        onClick={() => setShowForgotPassword(true)}
+                      >
+                        Forgot password?
+                      </button>
+                    </div>
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                      <Input
+                        id="password"
+                        type={showPassword ? "text" : "password"}
+                        placeholder="••••••••"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        className="pl-10"
+                        required
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="absolute right-0 top-0 h-10 w-10 text-gray-400"
+                        onClick={() => setShowPassword(!showPassword)}
+                      >
+                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </Button>
+                    </div>
+                  </div>
+
+                  <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700" disabled={isLoading}>
+                    {isLoading ? "Logging in..." : "Login"}
+                  </Button>
+                </form>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full mt-4"
+                  onClick={handleGoogleLogin}
+                  disabled={isLoading}
+                >
+                  Sign in with Google
+                </Button>
+
+                <p className="mt-4 text-center text-sm">
+                  Don't have an account?{" "}
+                  <Link href="/signup" className="text-blue-600 hover:underline">
+                    Sign Up
+                  </Link>
+                </p>
+              </>
+            )}
           </CardContent>
         </Card>
       </main>

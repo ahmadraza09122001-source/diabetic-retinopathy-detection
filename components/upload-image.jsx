@@ -3,7 +3,7 @@ import { useState } from "react"
 import { Button } from "./ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card"
 import { Progress } from "./ui/progress"
-import { Alert, AlertDescription } from "./ui/alert"
+import { Alert, AlertTitle, AlertDescription } from "./ui/alert"
 import { saveScan } from "../firebase/firestore"
 import { useToast } from "../hooks/use-toast"
 import { generateScanReportPDF } from "../lib/pdf-report"
@@ -54,6 +54,65 @@ const createThumbnail = (dataUrl, maxDim = 400, quality = 0.6) => {
   })
 }
 
+// Lightweight client-side heuristic check (blur via Laplacian variance, plus
+// brightness) so obviously unusable photos are rejected instantly instead of
+// wasting a round trip to the model. This is a best-effort heuristic, not a
+// substitute for the backend's own retina-image validation.
+const checkImageQuality = (dataUrl) => {
+  return new Promise((resolve) => {
+    const img = new Image()
+    img.onload = () => {
+      try {
+        const size = 200
+        const canvas = document.createElement("canvas")
+        canvas.width = size
+        canvas.height = size
+        const ctx = canvas.getContext("2d")
+        ctx.drawImage(img, 0, 0, size, size)
+        const { data } = ctx.getImageData(0, 0, size, size)
+
+        const gray = new Float32Array(size * size)
+        let sum = 0
+        for (let i = 0; i < size * size; i++) {
+          const v = 0.299 * data[i * 4] + 0.587 * data[i * 4 + 1] + 0.114 * data[i * 4 + 2]
+          gray[i] = v
+          sum += v
+        }
+        const meanBrightness = sum / (size * size)
+
+        let lapSum = 0
+        let lapSumSq = 0
+        let count = 0
+        for (let y = 1; y < size - 1; y++) {
+          for (let x = 1; x < size - 1; x++) {
+            const idx = y * size + x
+            const lap = gray[idx - size] + gray[idx + size] + gray[idx - 1] + gray[idx + 1] - 4 * gray[idx]
+            lapSum += lap
+            lapSumSq += lap * lap
+            count++
+          }
+        }
+        const lapMean = lapSum / count
+        const variance = lapSumSq / count - lapMean * lapMean
+
+        if (meanBrightness < 25) {
+          resolve({ ok: false, message: "This image looks too dark to analyze. Please upload a clearer, well-lit retinal image." })
+        } else if (meanBrightness > 235) {
+          resolve({ ok: false, message: "This image looks overexposed. Please upload a clearer retinal image." })
+        } else if (variance < 15) {
+          resolve({ ok: false, message: "This image appears too blurry to analyze. Please upload a sharper retinal image." })
+        } else {
+          resolve({ ok: true })
+        }
+      } catch {
+        resolve({ ok: true }) // don't block upload if the check itself fails
+      }
+    }
+    img.onerror = () => resolve({ ok: true })
+    img.src = dataUrl
+  })
+}
+
 export default function UploadImage() {
   const [image, setImage] = useState(null)
   const [preview, setPreview] = useState(null)
@@ -61,37 +120,52 @@ export default function UploadImage() {
   const [isLoading, setIsLoading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
   const [error, setError] = useState(null)
+  const [errorTitle, setErrorTitle] = useState(null)
   const { toast } = useToast()
 
   const handleChange = (e) => {
-    const file = e.target.files[0]
+    const inputEl = e.target
+    const file = inputEl.files[0]
     if (!file) return
 
     if (file.size > MAX_FILE_SIZE_BYTES) {
+      setErrorTitle("File Too Large")
       setError(`File is too large. Maximum allowed size is ${MAX_FILE_SIZE_MB}MB.`)
-      e.target.value = ""
+      inputEl.value = ""
       return
     }
-
-    setImage(file)
-
-    // Create preview URL
-    const reader = new FileReader()
-    reader.onload = (e) => {
-      if (e.target?.result) {
-        setPreview(e.target.result)
-      }
-    }
-    reader.readAsDataURL(file)
 
     // Reset states
     setResult(null)
     setError(null)
+    setErrorTitle(null)
     setUploadProgress(0)
+
+    // Create preview URL, then run a quick client-side quality check
+    const reader = new FileReader()
+    reader.onload = async (readerEvent) => {
+      const dataUrl = readerEvent.target?.result
+      if (!dataUrl) return
+
+      const quality = await checkImageQuality(dataUrl)
+      if (!quality.ok) {
+        setErrorTitle("Poor Image Quality")
+        setError(quality.message)
+        setImage(null)
+        setPreview(null)
+        inputEl.value = ""
+        return
+      }
+
+      setImage(file)
+      setPreview(dataUrl)
+    }
+    reader.readAsDataURL(file)
   }
 
   const handleUpload = async () => {
     if (!image) {
+      setErrorTitle("No Image Selected")
       setError("Please select an image to upload")
       return
     }
@@ -99,6 +173,7 @@ export default function UploadImage() {
     try {
       setIsLoading(true)
       setError(null)
+      setErrorTitle(null)
 
       // Simulate upload progress
       const progressInterval = setInterval(() => {
@@ -122,11 +197,17 @@ export default function UploadImage() {
       clearInterval(progressInterval)
       setUploadProgress(100)
 
+      const data = await res.json().catch(() => null)
+
       if (!res.ok) {
-        throw new Error(`Server responded with status: ${res.status}`)
+        const message = data?.error || `Server responded with status: ${res.status}`
+        const err = new Error(message)
+        // The backend returns 400 with a specific message when the image fails
+        // its retina-scan validation - surface that distinctly from generic errors.
+        err.title = res.status === 400 && data?.error ? "Invalid Image" : "Upload Error"
+        throw err
       }
 
-      const data = await res.json()
       console.log("Prediction result:", data)
 
       // Save result to state
@@ -165,9 +246,10 @@ export default function UploadImage() {
       })
     } catch (err) {
       console.error("Upload error:", err)
+      setErrorTitle(err.title || "Upload Error")
       setError(err.message || "Failed to upload image. Please try again.")
       toast({
-        title: "Error",
+        title: err.title || "Error",
         description: err.message || "Failed to upload image",
         variant: "destructive",
       })
@@ -181,6 +263,7 @@ export default function UploadImage() {
     setPreview(null)
     setResult(null)
     setError(null)
+    setErrorTitle(null)
     setUploadProgress(0)
   }
 
@@ -215,6 +298,7 @@ export default function UploadImage() {
       <CardContent>
         {error && (
           <Alert variant="destructive" className="mb-4">
+            {errorTitle && <AlertTitle>{errorTitle}</AlertTitle>}
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
