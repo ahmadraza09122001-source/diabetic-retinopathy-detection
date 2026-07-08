@@ -135,9 +135,9 @@ export default function ScanHistory() {
         // to the account's own name.
         patientName: scan.patientName || user?.fullName,
         patientAge: scan.patientAge,
-        gender: profile?.role === "patient" ? profile.gender : undefined,
-        diabetesType: profile?.role === "patient" ? profile.diabetesType : undefined,
-        diagnosisYear: profile?.role === "patient" ? profile.diagnosisYear : undefined,
+        gender: profile?.gender,
+        diabetesType: profile?.diabetesType,
+        diagnosisYear: profile?.diagnosisYear,
         phone: profile?.phone,
         fileName: scan.fileName,
         date: scan.date,

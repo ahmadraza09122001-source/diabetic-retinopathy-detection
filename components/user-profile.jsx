@@ -5,37 +5,42 @@ import { Button } from "./ui/button"
 import { Input } from "./ui/input"
 import { Label } from "./ui/label"
 import { Separator } from "./ui/separator"
-import { getUserProfile, saveUserProfile } from "../firebase/firestore"
+import { Badge } from "./ui/badge"
+import { getUserProfile, saveUserProfile, deleteUserProfile } from "../firebase/firestore"
 import { useToast } from "../hooks/use-toast"
 
 const GENDERS = ["Male", "Female", "Other", "Prefer not to say"]
 const DIABETES_TYPES = ["Type 1", "Type 2", "Gestational", "Pre-diabetes", "Not diabetic"]
 
-export default function UserProfile() {
-  const [role, setRole] = useState("patient")
-  const [fullName, setFullName] = useState("")
-  const [email, setEmail] = useState("")
-  const [phone, setPhone] = useState("")
+const selectClassName =
+  "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
 
-  // Patient fields
+export default function UserProfile() {
+  const [fullName, setFullName] = useState("")
+  const [phone, setPhone] = useState("")
   const [age, setAge] = useState("")
   const [gender, setGender] = useState("")
   const [diabetesType, setDiabetesType] = useState("")
   const [diagnosisYear, setDiagnosisYear] = useState("")
 
-  // Doctor fields
-  const [specialization, setSpecialization] = useState("")
-  const [clinicName, setClinicName] = useState("")
-  const [licenseNumber, setLicenseNumber] = useState("")
-  const [yearsExperience, setYearsExperience] = useState("")
-
+  const [hasProfile, setHasProfile] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
   const { toast } = useToast()
 
   useEffect(() => {
     loadProfile()
   }, [])
+
+  const resetFields = (fallbackName = "") => {
+    setFullName(fallbackName)
+    setPhone("")
+    setAge("")
+    setGender("")
+    setDiabetesType("")
+    setDiagnosisYear("")
+  }
 
   const loadProfile = async () => {
     try {
@@ -44,22 +49,18 @@ export default function UserProfile() {
       if (!userInfo) throw new Error("User not found. Please log in again.")
       const user = JSON.parse(userInfo)
 
-      setFullName(user.fullName || "")
-      setEmail(user.email || "")
-
       const profile = await getUserProfile(user.uid)
       if (profile) {
-        setRole(profile.role || "patient")
+        setHasProfile(true)
         setFullName(profile.fullName || user.fullName || "")
         setPhone(profile.phone || "")
         setAge(profile.age || "")
         setGender(profile.gender || "")
         setDiabetesType(profile.diabetesType || "")
         setDiagnosisYear(profile.diagnosisYear || "")
-        setSpecialization(profile.specialization || "")
-        setClinicName(profile.clinicName || "")
-        setLicenseNumber(profile.licenseNumber || "")
-        setYearsExperience(profile.yearsExperience || "")
+      } else {
+        setHasProfile(false)
+        resetFields(user.fullName || "")
       }
     } catch (error) {
       console.error("Error loading profile:", error)
@@ -81,17 +82,8 @@ export default function UserProfile() {
       if (!userInfo) throw new Error("User not found. Please log in again.")
       const user = JSON.parse(userInfo)
 
-      const profileData = {
-        role,
-        fullName,
-        email,
-        phone,
-        ...(role === "patient"
-          ? { age, gender, diabetesType, diagnosisYear }
-          : { specialization, clinicName, licenseNumber, yearsExperience }),
-      }
-
-      await saveUserProfile(user.uid, profileData)
+      await saveUserProfile(user.uid, { fullName, phone, age, gender, diabetesType, diagnosisYear })
+      setHasProfile(true)
 
       // Keep the display name in sync with localStorage/session state used elsewhere
       localStorage.setItem("user", JSON.stringify({ ...user, fullName }))
@@ -109,6 +101,35 @@ export default function UserProfile() {
       })
     } finally {
       setIsSaving(false)
+    }
+  }
+
+  const handleDelete = async () => {
+    if (!confirm("Delete your saved profile? You can fill in a new one afterward.")) return
+
+    try {
+      setIsDeleting(true)
+      const userInfo = localStorage.getItem("user")
+      if (!userInfo) throw new Error("User not found. Please log in again.")
+      const user = JSON.parse(userInfo)
+
+      await deleteUserProfile(user.uid)
+      setHasProfile(false)
+      resetFields(user.fullName || "")
+
+      toast({
+        title: "Profile deleted",
+        description: "Your profile has been removed. Fill in the form to create a new one.",
+      })
+    } catch (error) {
+      console.error("Error deleting profile:", error)
+      toast({
+        title: "Error",
+        description: "Failed to delete your profile. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsDeleting(false)
     }
   }
 
@@ -131,43 +152,24 @@ export default function UserProfile() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>My Profile</CardTitle>
-        <CardDescription>Manage your personal and medical information</CardDescription>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle>My Profile</CardTitle>
+            <CardDescription>Manage your personal and medical information</CardDescription>
+          </div>
+          {hasProfile ? (
+            <Badge className="bg-green-100 text-green-800 border-green-300">Profile saved</Badge>
+          ) : (
+            <Badge className="bg-gray-100 text-gray-600 border-gray-300">No profile yet</Badge>
+          )}
+        </div>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSave} className="space-y-6">
-          <div className="space-y-2">
-            <Label>Account Type</Label>
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                variant={role === "patient" ? "default" : "outline"}
-                onClick={() => setRole("patient")}
-                className={role === "patient" ? "bg-blue-600 hover:bg-blue-700" : ""}
-              >
-                Patient
-              </Button>
-              <Button
-                type="button"
-                variant={role === "doctor" ? "default" : "outline"}
-                onClick={() => setRole("doctor")}
-                className={role === "doctor" ? "bg-blue-600 hover:bg-blue-700" : ""}
-              >
-                Doctor
-              </Button>
-            </div>
-          </div>
-
-          <Separator />
-
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="fullName">Full Name</Label>
               <Input id="fullName" value={fullName} onChange={(e) => setFullName(e.target.value)} required />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input id="email" value={email} disabled className="bg-gray-50" />
             </div>
             <div className="space-y-2">
               <Label htmlFor="phone">Phone Number</Label>
@@ -183,102 +185,69 @@ export default function UserProfile() {
 
           <Separator />
 
-          {role === "patient" ? (
-            <div className="space-y-4">
-              <h3 className="text-sm font-medium text-gray-500">Medical Information</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="age">Age</Label>
-                  <Input id="age" type="number" min="0" max="120" value={age} onChange={(e) => setAge(e.target.value)} />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="gender">Gender</Label>
-                  <select
-                    id="gender"
-                    value={gender}
-                    onChange={(e) => setGender(e.target.value)}
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                  >
-                    <option value="">Select gender</option>
-                    {GENDERS.map((g) => (
-                      <option key={g} value={g}>
-                        {g}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="diabetesType">Diabetes Type</Label>
-                  <select
-                    id="diabetesType"
-                    value={diabetesType}
-                    onChange={(e) => setDiabetesType(e.target.value)}
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                  >
-                    <option value="">Select type</option>
-                    {DIABETES_TYPES.map((t) => (
-                      <option key={t} value={t}>
-                        {t}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="diagnosisYear">Year of Diagnosis</Label>
-                  <Input
-                    id="diagnosisYear"
-                    type="number"
-                    min="1950"
-                    max={new Date().getFullYear()}
-                    value={diagnosisYear}
-                    onChange={(e) => setDiagnosisYear(e.target.value)}
-                  />
-                </div>
+          <div className="space-y-4">
+            <h3 className="text-sm font-medium text-gray-500">Medical Information</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="age">Age</Label>
+                <Input id="age" type="number" min="0" max="120" value={age} onChange={(e) => setAge(e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="gender">Gender</Label>
+                <select
+                  id="gender"
+                  value={gender}
+                  onChange={(e) => setGender(e.target.value)}
+                  className={selectClassName}
+                >
+                  <option value="">Select gender</option>
+                  {GENDERS.map((g) => (
+                    <option key={g} value={g}>
+                      {g}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="diabetesType">Diabetes Type</Label>
+                <select
+                  id="diabetesType"
+                  value={diabetesType}
+                  onChange={(e) => setDiabetesType(e.target.value)}
+                  className={selectClassName}
+                >
+                  <option value="">Select type</option>
+                  {DIABETES_TYPES.map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="diagnosisYear">Year of Diagnosis</Label>
+                <Input
+                  id="diagnosisYear"
+                  type="number"
+                  min="1950"
+                  max={new Date().getFullYear()}
+                  value={diagnosisYear}
+                  onChange={(e) => setDiagnosisYear(e.target.value)}
+                />
               </div>
             </div>
-          ) : (
-            <div className="space-y-4">
-              <h3 className="text-sm font-medium text-gray-500">Professional Information</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="specialization">Specialization</Label>
-                  <Input
-                    id="specialization"
-                    placeholder="e.g. Ophthalmology"
-                    value={specialization}
-                    onChange={(e) => setSpecialization(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="clinicName">Clinic / Hospital Name</Label>
-                  <Input id="clinicName" value={clinicName} onChange={(e) => setClinicName(e.target.value)} />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="licenseNumber">Medical License Number</Label>
-                  <Input
-                    id="licenseNumber"
-                    value={licenseNumber}
-                    onChange={(e) => setLicenseNumber(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="yearsExperience">Years of Experience</Label>
-                  <Input
-                    id="yearsExperience"
-                    type="number"
-                    min="0"
-                    max="70"
-                    value={yearsExperience}
-                    onChange={(e) => setYearsExperience(e.target.value)}
-                  />
-                </div>
-              </div>
-            </div>
-          )}
+          </div>
 
-          <Button type="submit" className="bg-blue-600 hover:bg-blue-700" disabled={isSaving}>
-            {isSaving ? "Saving..." : "Save Profile"}
-          </Button>
+          <div className="flex gap-2">
+            <Button type="submit" className="bg-blue-600 hover:bg-blue-700" disabled={isSaving}>
+              {isSaving ? "Saving..." : hasProfile ? "Update Profile" : "Save Profile"}
+            </Button>
+            {hasProfile && (
+              <Button type="button" variant="destructive" onClick={handleDelete} disabled={isDeleting}>
+                {isDeleting ? "Deleting..." : "Delete Profile"}
+              </Button>
+            )}
+          </div>
         </form>
       </CardContent>
     </Card>

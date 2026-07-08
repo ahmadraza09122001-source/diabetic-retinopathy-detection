@@ -145,7 +145,7 @@ export default function UploadImage() {
         if (!profile) return
         setSavedProfile(profile)
         if (profile.fullName) setPatientName(profile.fullName)
-        if (profile.role === "patient" && profile.age) setPatientAge(String(profile.age))
+        if (profile.age) setPatientAge(String(profile.age))
       })
       .catch((err) => console.error("Error loading profile for upload form:", err))
   }, [])
@@ -334,9 +334,9 @@ export default function UploadImage() {
       generateScanReportPDF({
         patientName,
         patientAge,
-        gender: savedProfile?.role === "patient" ? savedProfile.gender : undefined,
-        diabetesType: savedProfile?.role === "patient" ? savedProfile.diabetesType : undefined,
-        diagnosisYear: savedProfile?.role === "patient" ? savedProfile.diagnosisYear : undefined,
+        gender: savedProfile?.gender,
+        diabetesType: savedProfile?.diabetesType,
+        diagnosisYear: savedProfile?.diagnosisYear,
         phone: savedProfile?.phone,
         fileName: image?.name,
         date: new Date().toISOString(),
