@@ -7,6 +7,7 @@ import { Separator } from "./ui/separator"
 import { getUserScans, deleteScan, getUserProfile } from "../firebase/firestore"
 import { useToast } from "../hooks/use-toast"
 import { generateScanReportPDF } from "../lib/pdf-report"
+import { formatGradeWithStage } from "../lib/dr-stage"
 
 export default function ScanHistory() {
   const [history, setHistory] = useState([])
@@ -275,7 +276,7 @@ export default function ScanHistory() {
                           variant="outline"
                           className={getDRGradeColor(scan.result.class || scan.result.grade_label)}
                         >
-                          {scan.result.class || scan.result.grade_label || "Unknown"}
+                          {formatGradeWithStage(scan.result.class || scan.result.grade_label) || "Unknown"}
                         </Badge>
                       </div>
                     </div>
@@ -367,7 +368,8 @@ export default function ScanHistory() {
                           selectedScan.result.class || selectedScan.result.grade_label,
                         )}`}
                       >
-                        {selectedScan.result.class || selectedScan.result.grade_label || "Unknown"}
+                        {formatGradeWithStage(selectedScan.result.class || selectedScan.result.grade_label) ||
+                          "Unknown"}
                       </span>
                     </h3>
 

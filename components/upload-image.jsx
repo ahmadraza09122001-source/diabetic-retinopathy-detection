@@ -9,6 +9,7 @@ import { Alert, AlertTitle, AlertDescription } from "./ui/alert"
 import { saveScan, getUserProfile } from "../firebase/firestore"
 import { useToast } from "../hooks/use-toast"
 import { generateScanReportPDF } from "../lib/pdf-report"
+import { formatGradeWithStage } from "../lib/dr-stage"
 // Update the import for FirestoreTest
 import FirestoreTest from "./firestore-test"
 
@@ -485,7 +486,9 @@ export default function UploadImage() {
                     result.class || result.grade_label,
                   )}`}
                 >
-                  <span className="font-semibold">Result: {result.class || result.grade_label || "Unknown"}</span>
+                  <span className="font-semibold">
+                    Result: {formatGradeWithStage(result.class || result.grade_label) || "Unknown"}
+                  </span>
                 </div>
                 <div className="mt-4 flex gap-2">
                   <Button onClick={handleDownloadReport} variant="outline" size="sm">

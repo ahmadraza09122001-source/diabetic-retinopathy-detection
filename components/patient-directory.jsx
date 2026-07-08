@@ -6,6 +6,7 @@ import { Input } from "./ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/table"
 import { getUserProfile, getProfilesByRole, getUserScans } from "../firebase/firestore"
 import { useToast } from "../hooks/use-toast"
+import { formatGradeWithStage } from "../lib/dr-stage"
 
 const DIABETES_TYPES = ["Type 1", "Type 2", "Gestational", "Pre-diabetes", "Not diabetic"]
 const SEVERITY_LEVELS = ["No DR", "Mild", "Moderate", "Severe", "Proliferative DR"]
@@ -198,7 +199,7 @@ export default function PatientDirectory() {
                         <TableCell>
                           {resultGrade ? (
                             <Badge variant="outline" className={getResultColor(resultGrade)}>
-                              {resultGrade}
+                              {formatGradeWithStage(resultGrade)}
                             </Badge>
                           ) : (
                             <span className="text-sm text-gray-400">No scans yet</span>
