@@ -12,6 +12,20 @@ import FirestoreTest from "./firestore-test"
 const MAX_FILE_SIZE_MB = 5
 const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024
 
+const getResultColor = (grade) => {
+  const gradeMap = {
+    "No DR": "bg-green-100 text-green-800 border-green-300",
+    Mild: "bg-blue-100 text-blue-800 border-blue-300",
+    Moderate: "bg-yellow-100 text-yellow-800 border-yellow-300",
+    Severe: "bg-orange-100 text-orange-800 border-orange-300",
+    "Proliferative DR": "bg-red-100 text-red-800 border-red-300",
+  }
+  for (const [key, value] of Object.entries(gradeMap)) {
+    if (grade && grade.includes(key)) return value
+  }
+  return "bg-gray-100 text-gray-800 border-gray-300"
+}
+
 export default function UploadImage() {
   const [image, setImage] = useState(null)
   const [preview, setPreview] = useState(null)
@@ -223,6 +237,23 @@ export default function UploadImage() {
 
             {result && (
               <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+                <div
+                  className={`flex items-center justify-between px-4 py-3 rounded-lg border mb-4 ${getResultColor(
+                    result.class || result.grade_label,
+                  )}`}
+                >
+                  <span className="font-semibold">Result: {result.class || result.grade_label || "Unknown"}</span>
+                  {result.confidence && (
+                    <span className="text-sm font-medium">
+                      {(
+                        (typeof result.confidence === "object"
+                          ? Math.max(...Object.values(result.confidence))
+                          : result.confidence) * 100
+                      ).toFixed(1)}
+                      % confidence
+                    </span>
+                  )}
+                </div>
                 <h3 className="font-semibold text-lg mb-2">Prediction: {result.class || result.grade_label}</h3>
                 <div className="space-y-2">
                   {result.confidence && typeof result.confidence === "object" ? (
