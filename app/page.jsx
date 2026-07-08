@@ -2,24 +2,6 @@ import Link from "next/link"
 import { Navbar } from "../components/navbar"
 
 // Simple icon components to replace lucide-react
-const EyeIcon = () => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    width="24"
-    height="24"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    className="mr-2"
-  >
-    <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
-    <circle cx="12" cy="12" r="3" />
-  </svg>
-)
-
 const ShieldIcon = () => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
@@ -154,13 +136,14 @@ export default function Home() {
           <div className="flex flex-col md:flex-row justify-between">
             <div className="mb-8 md:mb-0">
               <h3 className="text-2xl font-bold mb-4 flex items-center">
-                <EyeIcon /> Diabetic Retinopathy Detection
+                <img src="/logo-icon.png" alt="Logo" className="h-8 w-8 mr-2" />
+                Diabetic Retinopathy Detection
               </h3>
               <p className="text-blue-200 max-w-md">
                 AI-powered diabetic retinopathy detection platform helping prevent vision loss through early detection.
               </p>
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-8">
+            <div className="grid grid-cols-2 gap-8">
               <div>
                 <h4 className="font-semibold text-lg mb-4">Platform</h4>
                 <ul className="space-y-2">
@@ -192,26 +175,6 @@ export default function Home() {
                   <li>
                     <Link href="/signup" className="text-blue-200 hover:text-white">
                       Sign Up
-                    </Link>
-                  </li>
-                </ul>
-              </div>
-              <div>
-                <h4 className="font-semibold text-lg mb-4">Resources</h4>
-                <ul className="space-y-2">
-                  <li>
-                    <Link href="/about#faq" className="text-blue-200 hover:text-white">
-                      FAQ
-                    </Link>
-                  </li>
-                  <li>
-                    <Link href="/about#research" className="text-blue-200 hover:text-white">
-                      Research
-                    </Link>
-                  </li>
-                  <li>
-                    <Link href="/about#contact" className="text-blue-200 hover:text-white">
-                      Contact
                     </Link>
                   </li>
                 </ul>
