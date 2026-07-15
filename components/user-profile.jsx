@@ -1,12 +1,12 @@
 "use client"
 import { useState, useEffect } from "react"
+import { useSession } from "next-auth/react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "./ui/card"
 import { Button } from "./ui/button"
 import { Input } from "./ui/input"
 import { Label } from "./ui/label"
 import { Separator } from "./ui/separator"
 import { Badge } from "./ui/badge"
-import { getUserProfile, saveUserProfile, deleteUserProfile } from "../firebase/firestore"
 import { useToast } from "../hooks/use-toast"
 
 const GENDERS = ["Male", "Female", "Other", "Prefer not to say"]
@@ -15,6 +15,7 @@ const selectClassName =
   "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
 
 export default function UserProfile() {
+  const { data: session, update } = useSession()
   const [fullName, setFullName] = useState("")
   const [phone, setPhone] = useState("")
   const [age, setAge] = useState("")
@@ -27,8 +28,8 @@ export default function UserProfile() {
   const { toast } = useToast()
 
   useEffect(() => {
-    loadProfile()
-  }, [])
+    if (session) loadProfile()
+  }, [session])
 
   const resetFields = (fallbackName = "") => {
     setFullName(fallbackName)
@@ -40,20 +41,20 @@ export default function UserProfile() {
   const loadProfile = async () => {
     try {
       setIsLoading(true)
-      const userInfo = localStorage.getItem("user")
-      if (!userInfo) throw new Error("User not found. Please log in again.")
-      const user = JSON.parse(userInfo)
 
-      const profile = await getUserProfile(user.uid)
+      const res = await fetch("/api/profile")
+      if (!res.ok) throw new Error("Failed to load profile.")
+      const profile = await res.json()
+
       if (profile) {
         setHasProfile(true)
-        setFullName(profile.fullName || user.fullName || "")
+        setFullName(session?.user?.name || "")
         setPhone(profile.phone || "")
         setAge(profile.age || "")
         setGender(profile.gender || "")
       } else {
         setHasProfile(false)
-        resetFields(user.fullName || "")
+        resetFields(session?.user?.name || "")
       }
     } catch (error) {
       console.error("Error loading profile:", error)
@@ -71,15 +72,17 @@ export default function UserProfile() {
     e.preventDefault()
     try {
       setIsSaving(true)
-      const userInfo = localStorage.getItem("user")
-      if (!userInfo) throw new Error("User not found. Please log in again.")
-      const user = JSON.parse(userInfo)
 
-      await saveUserProfile(user.uid, { fullName, phone, age, gender })
+      const res = await fetch("/api/profile", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fullName, phone, age, gender }),
+      })
+      if (!res.ok) throw new Error("Failed to save profile.")
       setHasProfile(true)
 
-      // Keep the display name in sync with localStorage/session state used elsewhere
-      localStorage.setItem("user", JSON.stringify({ ...user, fullName }))
+      // Keep the navbar/dashboard name in sync without requiring re-login
+      await update({ name: fullName })
 
       toast({
         title: "Profile saved",
@@ -102,13 +105,11 @@ export default function UserProfile() {
 
     try {
       setIsDeleting(true)
-      const userInfo = localStorage.getItem("user")
-      if (!userInfo) throw new Error("User not found. Please log in again.")
-      const user = JSON.parse(userInfo)
 
-      await deleteUserProfile(user.uid)
+      const res = await fetch("/api/profile", { method: "DELETE" })
+      if (!res.ok) throw new Error("Failed to delete profile.")
       setHasProfile(false)
-      resetFields(user.fullName || "")
+      resetFields(session?.user?.name || "")
 
       toast({
         title: "Profile deleted",

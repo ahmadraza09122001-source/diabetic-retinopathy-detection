@@ -3,6 +3,7 @@
 import { useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
+import { signIn } from "next-auth/react"
 import { Eye, EyeOff, Mail, Lock, User, AlertCircle } from "lucide-react"
 import { Button } from "../../components/ui/button"
 import { Input } from "../../components/ui/input"
@@ -10,32 +11,6 @@ import { Label } from "../../components/ui/label"
 import { Navbar } from "../../components/navbar"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../components/ui/card"
 import { Alert, AlertDescription } from "../../components/ui/alert"
-import { getApps, getApp, initializeApp } from "firebase/app";
-
-// Firebase imports
-
-import {
-  getAuth,
-  createUserWithEmailAndPassword,
-  GoogleAuthProvider,
-  signInWithPopup,
-} from "firebase/auth"
-
-// Firebase configuration
-const firebaseConfig = {
-  apiKey: "AIzaSyD93QLoWNrXo7drg2aBivaycz0SbD_faEw",
-  authDomain: "dr-detection-53db0.firebaseapp.com",
-  projectId: "dr-detection-53db0",
-  storageBucket: "dr-detection-53db0.firebasestorage.app",
-  messagingSenderId: "988432779226",
-  appId: "1:988432779226:web:59b6cae3e4067707d722e3",
-  measurementId: "G-94K7S1VM4T",
-}
-
-// Initialize Firebase
-let app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-const auth = getAuth(app)
-const provider = new GoogleAuthProvider()
 
 export default function Signup() {
   const router = useRouter()
@@ -78,31 +53,29 @@ export default function Signup() {
     setIsLoading(true)
 
     try {
-      // Create the user account
-      const userCredential = await createUserWithEmailAndPassword(auth, formData.email, formData.password)
-      const user = userCredential.user
-
-      // Log the user in immediately - no email verification step
-      localStorage.setItem(
-        "user",
-        JSON.stringify({
-          uid: user.uid,
+      const res = await fetch("/api/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
           fullName: formData.fullName,
           email: formData.email,
-          isLoggedIn: true,
-          emailVerified: true,
+          password: formData.password,
         }),
-      )
-      document.cookie = "auth=true; path=/; max-age=604800; SameSite=Strict"
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || "Failed to create account")
 
-      // Show success message
+      // Log the user in immediately - no email verification step
+      const result = await signIn("credentials", {
+        email: formData.email,
+        password: formData.password,
+        redirect: false,
+      })
+      if (result?.error) throw new Error("Account created, but automatic login failed. Please log in manually.")
+
       setSuccess(true)
-      setError("") // Clear any previous errors
-
-      // Scroll to the top to ensure the success message is visible
       window.scrollTo(0, 0)
 
-      // Redirect straight to the dashboard
       setTimeout(() => {
         router.push("/dashboard")
       }, 1000)
@@ -116,26 +89,9 @@ export default function Signup() {
   const handleGoogleSignup = async () => {
     setIsLoading(true)
     try {
-      const result = await signInWithPopup(auth, provider)
-      const user = result.user
-
-      // Google accounts are pre-verified
-      localStorage.setItem(
-        "user",
-        JSON.stringify({
-          uid: user.uid,
-          fullName: user.displayName,
-          email: user.email,
-          isLoggedIn: true,
-          emailVerified: true,
-        }),
-      )
-
-      // Redirect directly to dashboard
-      router.push("/dashboard")
+      await signIn("google", { callbackUrl: "/dashboard" })
     } catch (err) {
-      setError(err.message)
-    } finally {
+      setError(err.message || "Failed to sign up with Google.")
       setIsLoading(false)
     }
   }

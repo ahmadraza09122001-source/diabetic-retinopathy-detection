@@ -1,22 +1,28 @@
-import { PrismaClient } from '@prisma/client';
-import bcrypt from 'bcrypt';
-
-const prisma = new PrismaClient();
+import bcrypt from "bcrypt"
+import { prisma } from "@/lib/prisma"
 
 export async function POST(req) {
-    try {
-        const { name, email, password } = await req.json();
+  try {
+    const { fullName, email, password } = await req.json()
 
-        // Hash password
-        const hashedPassword = await bcrypt.hash(password, 10);
-
-        // Create user in DB
-        const user = await prisma.user.create({
-            data: { name, email, password: hashedPassword }
-        });
-
-        return new Response(JSON.stringify(user), { status: 201 });
-    } catch (error) {
-        return new Response(JSON.stringify({ error: "User creation failed" }), { status: 500 });
+    if (!fullName || !email || !password) {
+      return Response.json({ error: "Name, email, and password are required" }, { status: 400 })
     }
+
+    const existing = await prisma.user.findUnique({ where: { email } })
+    if (existing) {
+      return Response.json({ error: "An account with this email already exists" }, { status: 409 })
+    }
+
+    const passwordHash = await bcrypt.hash(password, 10)
+
+    const user = await prisma.user.create({
+      data: { fullName, email, passwordHash },
+    })
+
+    return Response.json({ id: user.id, fullName: user.fullName, email: user.email }, { status: 201 })
+  } catch (error) {
+    console.error("Registration error:", error)
+    return Response.json({ error: "User creation failed" }, { status: 500 })
+  }
 }

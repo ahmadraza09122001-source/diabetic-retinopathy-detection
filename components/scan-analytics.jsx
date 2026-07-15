@@ -17,7 +17,6 @@ import {
   Pie,
   Cell,
 } from "recharts"
-import { getUserAnalytics } from "../firebase/firestore"
 import { useToast } from "../hooks/use-toast"
 
 // Colors for the pie chart
@@ -46,16 +45,43 @@ export default function ScanAnalytics() {
     try {
       setIsLoading(true)
 
-      // Get user from localStorage
-      const userInfo = localStorage.getItem("user")
-      if (!userInfo) {
-        throw new Error("User not found. Please log in again.")
+      const res = await fetch("/api/scans")
+      if (!res.ok) throw new Error("Failed to load scans.")
+      const scans = await res.json()
+
+      // Compute aggregates client-side from the raw scan list (same approach
+      // used before this migration - no separate analytics endpoint needed).
+      const totalScans = scans.length
+      const drGrades = {
+        "No DR": 0,
+        Mild: 0,
+        Moderate: 0,
+        Severe: 0,
+        "Proliferative DR": 0,
+        Unknown: 0,
       }
+      const monthlyScans = {}
 
-      const user = JSON.parse(userInfo)
+      scans.forEach((scan) => {
+        const grade = scan.result?.class || scan.result?.grade_label || "Unknown"
+        if (drGrades[grade] !== undefined) {
+          drGrades[grade] += 1
+        } else {
+          drGrades["Unknown"] += 1
+        }
 
-      // Fetch analytics from Firestore
-      const analyticsData = await getUserAnalytics(user.uid)
+        try {
+          const date = new Date(scan.date)
+          const year = date.getFullYear()
+          const month = String(date.getMonth() + 1).padStart(2, "0")
+          const monthYear = `${year}-${month}`
+          monthlyScans[monthYear] = (monthlyScans[monthYear] || 0) + 1
+        } catch (e) {
+          console.error("Error processing date for scan:", scan.id, e)
+        }
+      })
+
+      const analyticsData = { totalScans, drGrades, monthlyScans, scans }
       setAnalytics(analyticsData)
 
       // Process monthly data for chart

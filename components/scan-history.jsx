@@ -1,15 +1,16 @@
 "use client"
 import { useState, useEffect } from "react"
+import { useSession } from "next-auth/react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "./ui/card"
 import { Button } from "./ui/button"
 import { Badge } from "./ui/badge"
 import { Separator } from "./ui/separator"
-import { getUserScans, deleteScan, getUserProfile } from "../firebase/firestore"
 import { useToast } from "../hooks/use-toast"
 import { generateScanReportPDF } from "../lib/pdf-report"
 import { formatGradeWithStage } from "../lib/dr-stage"
 
 export default function ScanHistory() {
+  const { data: session } = useSession()
   const [history, setHistory] = useState([])
   const [selectedScan, setSelectedScan] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -23,16 +24,9 @@ export default function ScanHistory() {
     try {
       setIsLoading(true)
 
-      // Get user from localStorage
-      const userInfo = localStorage.getItem("user")
-      if (!userInfo) {
-        throw new Error("User not found. Please log in again.")
-      }
-
-      const user = JSON.parse(userInfo)
-
-      // Fetch scans from Firestore
-      const scans = await getUserScans(user.uid)
+      const res = await fetch("/api/scans")
+      if (!res.ok) throw new Error("Failed to load scan history.")
+      const scans = await res.json()
       setHistory(scans)
 
       // Select the first scan if available
@@ -54,17 +48,9 @@ export default function ScanHistory() {
   const handleClearHistory = async () => {
     if (confirm("Are you sure you want to clear your scan history? This action cannot be undone.")) {
       try {
-        // Get user from localStorage
-        const userInfo = localStorage.getItem("user")
-        if (!userInfo) {
-          throw new Error("User not found. Please log in again.")
-        }
-
-        const user = JSON.parse(userInfo)
-
         // Delete each scan individually
         for (const scan of history) {
-          await deleteScan(scan.id, user.uid)
+          await fetch(`/api/scans/${scan.id}`, { method: "DELETE" })
         }
 
         setHistory([])
@@ -87,16 +73,8 @@ export default function ScanHistory() {
 
   const handleDeleteScan = async (scanId) => {
     try {
-      // Get user from localStorage
-      const userInfo = localStorage.getItem("user")
-      if (!userInfo) {
-        throw new Error("User not found. Please log in again.")
-      }
-
-      const user = JSON.parse(userInfo)
-
-      // Delete the scan
-      await deleteScan(scanId, user.uid)
+      const res = await fetch(`/api/scans/${scanId}`, { method: "DELETE" })
+      if (!res.ok) throw new Error("Failed to delete scan.")
 
       // Update the local state
       setHistory(history.filter((scan) => scan.id !== scanId))
@@ -126,14 +104,13 @@ export default function ScanHistory() {
 
   const handleDownloadReport = async (scan) => {
     try {
-      const userInfo = localStorage.getItem("user")
-      const user = userInfo ? JSON.parse(userInfo) : null
-      const profile = user?.uid ? await getUserProfile(user.uid) : null
+      const profileRes = await fetch("/api/profile")
+      const profile = profileRes.ok ? await profileRes.json() : null
 
       generateScanReportPDF({
         // Older scans saved before patient name/age were collected fall back
         // to the account's own name.
-        patientName: scan.patientName || user?.fullName,
+        patientName: scan.patientName || session?.user?.name,
         patientAge: scan.patientAge,
         gender: profile?.gender,
         phone: profile?.phone,

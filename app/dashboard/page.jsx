@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
+import { useSession, signOut } from "next-auth/react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Navbar } from "@/components/navbar"
@@ -11,11 +12,6 @@ import ScanHistory from "@/components/scan-history"
 import ScanAnalytics from "@/components/scan-analytics"
 import UserProfile from "@/components/user-profile"
 import AccountSettings from "@/components/account-settings"
-import AuthCheck from "@/components/auth-check"
-import { auth, db, googleProvider, storage } from "@/lib/firebase"
-
-
-
 
 // Simple icon components to replace lucide-react
 const UploadIcon = () => (
@@ -132,8 +128,7 @@ const LogoutIcon = () => (
 export default function Dashboard() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const [user, setUser] = useState(null)
-  const [isLoading, setIsLoading] = useState(true)
+  const { data: session, status } = useSession()
   const [activeTab, setActiveTab] = useState("upload")
   const [notification, setNotification] = useState(null)
 
@@ -159,49 +154,17 @@ export default function Dashboard() {
   }, [searchParams])
 
   useEffect(() => {
-    // Check if user is logged in
-    const checkAuth = () => {
-      try {
-        const userData = localStorage.getItem("user")
-
-        // First check if we have user data
-        if (!userData) {
-          console.log("No user data found, redirecting to login")
-          router.push("/login?callbackUrl=/dashboard")
-          return
-        }
-
-        const parsedUser = JSON.parse(userData)
-
-        // Make sure the user is marked as logged in and email is verified
-        if (parsedUser.isLoggedIn && parsedUser.emailVerified) {
-          setUser(parsedUser)
-          setIsLoading(false)
-        } else if (parsedUser.isLoggedIn && !parsedUser.emailVerified) {
-          // If email is not verified, redirect to verification page
-          console.log("Email not verified, redirecting to verification page")
-          router.push("/verify-email")
-        } else {
-          // If not marked as logged in, redirect to login
-          console.log("Not logged in, redirecting to login")
-          router.push("/login?callbackUrl=/dashboard")
-        }
-      } catch (error) {
-        console.error("Error checking authentication:", error)
-        router.push("/login?callbackUrl=/dashboard")
-      }
+    if (status === "unauthenticated") {
+      router.push("/login?callbackUrl=/dashboard")
     }
-
-    checkAuth()
-  }, [router])
+  }, [status, router])
 
   const handleLogout = () => {
-    localStorage.removeItem("user")
-    router.push("/login")
+    signOut({ callbackUrl: "/login" })
   }
 
   // Show loading state while checking authentication
-  if (isLoading) {
+  if (status === "loading" || status === "unauthenticated") {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
@@ -235,8 +198,8 @@ export default function Dashboard() {
                     <UserIcon />
                   </div>
                   <div>
-                    <h3 className="font-medium">{user?.fullName || "User"}</h3>
-                    <p className="text-sm text-gray-500">{user?.email || "user@example.com"}</p>
+                    <h3 className="font-medium">{session?.user?.name || "User"}</h3>
+                    <p className="text-sm text-gray-500">{session?.user?.email || "user@example.com"}</p>
                   </div>
                 </div>
 

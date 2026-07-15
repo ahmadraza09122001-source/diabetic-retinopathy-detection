@@ -1,11 +1,12 @@
 "use client"
 
 import Link from "next/link"
-import { useState } from "react"
+import { useSession, signOut } from "next-auth/react"
 import { Button } from "@/components/ui/button"
 
 export function Navbar() {
-  const [isLoggedIn, setIsLoggedIn] = useState(false)
+  const { data: session } = useSession()
+  const isLoggedIn = !!session
 
   return (
     <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
@@ -31,7 +32,7 @@ export function Navbar() {
               </Link>
               <Button
                 variant="ghost"
-                onClick={() => setIsLoggedIn(false)}
+                onClick={() => signOut({ callbackUrl: "/login" })}
                 className="text-gray-700 hover:text-blue-600 font-medium"
               >
                 Logout

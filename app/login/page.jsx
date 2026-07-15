@@ -3,6 +3,7 @@
 import { useState } from "react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
+import { signIn } from "next-auth/react"
 import { Eye, EyeOff, Mail, Lock, AlertCircle } from "lucide-react"
 import { Button } from "../../components/ui/button"
 import { Input } from "../../components/ui/input"
@@ -10,33 +11,6 @@ import { Label } from "../../components/ui/label"
 import { Navbar } from "../../components/navbar"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../components/ui/card"
 import { Alert, AlertDescription } from "../../components/ui/alert"
-import { initializeApp, getApps, getApp } from "firebase/app";  // Import getApps and getApp
-
-// Firebase imports
-
-import {
-  getAuth,
-  signInWithEmailAndPassword,
-  GoogleAuthProvider,
-  signInWithPopup,
-  sendPasswordResetEmail,
-} from "firebase/auth"
-
-// Firebase configuration
-const firebaseConfig = {
-  apiKey: "AIzaSyD93QLoWNrXo7drg2aBivaycz0SbD_faEw",
-  authDomain: "dr-detection-53db0.firebaseapp.com",
-  projectId: "dr-detection-53db0",
-  storageBucket: "dr-detection-53db0.firebasestorage.app",
-  messagingSenderId: "988432779226",
-  appId: "1:988432779226:web:59b6cae3e4067707d722e3",
-  measurementId: "G-94K7S1VM4T",
-}
-
-// Initialize Firebase
-let app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-const auth = getAuth(app)
-const provider = new GoogleAuthProvider()
 
 export default function Login() {
   const router = useRouter()
@@ -62,10 +36,14 @@ export default function Login() {
     setIsResetting(true)
 
     try {
-      await sendPasswordResetEmail(auth, resetEmail)
-      setResetMessage(
-        "If an account exists for this email, a password reset link has been sent. Check your inbox (and spam folder).",
-      )
+      const res = await fetch("/api/auth/forgot-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: resetEmail }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || "Failed to send reset email.")
+      setResetMessage(data.message || "If an account exists for this email, a reset link has been sent.")
     } catch (err) {
       setResetError(err.message || "Failed to send reset email. Please try again.")
     } finally {
@@ -79,27 +57,16 @@ export default function Login() {
     setIsLoading(true)
 
     try {
-      const userCredential = await signInWithEmailAndPassword(auth, email, password)
-      const user = userCredential.user
+      const result = await signIn("credentials", { email, password, redirect: false })
 
-      const userData = {
-        uid: user.uid,
-        email: user.email,
-        fullName: user.displayName || email.split("@")[0],
-        isLoggedIn: true,
-        emailVerified: true,
+      if (result?.error) {
+        setError("Invalid email or password")
+        return
       }
 
-      // Store user info in localStorage
-      localStorage.setItem("user", JSON.stringify(userData))
-
-      // Set auth cookie with HttpOnly and Secure flags for better security
-      document.cookie = "auth=true; path=/; max-age=604800; SameSite=Strict" // 7 days
-
-      // Redirect to callback URL or dashboard
       router.push(callbackUrl)
     } catch (err) {
-      setError(err.message || "Invalid email or password")
+      setError(err.message || "Failed to log in. Please try again.")
     } finally {
       setIsLoading(false)
     }
@@ -108,29 +75,9 @@ export default function Login() {
   const handleGoogleLogin = async () => {
     setIsLoading(true)
     try {
-      const result = await signInWithPopup(auth, provider)
-      const user = result.user
-
-      // Google accounts are pre-verified
-      localStorage.setItem(
-        "user",
-        JSON.stringify({
-          uid: user.uid,
-          fullName: user.displayName,
-          email: user.email,
-          isLoggedIn: true,
-          emailVerified: true,
-        }),
-      )
-
-      // Set auth cookie with HttpOnly and Secure flags for better security
-      document.cookie = "auth=true; path=/; max-age=604800; SameSite=Strict" // 7 days
-
-      // Redirect to callback URL or dashboard
-      router.push(callbackUrl)
+      await signIn("google", { callbackUrl })
     } catch (err) {
-      setError(err.message)
-    } finally {
+      setError(err.message || "Failed to sign in with Google.")
       setIsLoading(false)
     }
   }

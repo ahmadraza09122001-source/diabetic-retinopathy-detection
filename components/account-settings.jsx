@@ -1,29 +1,20 @@
 "use client"
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
+import { signOut } from "next-auth/react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "./ui/card"
 import { Button } from "./ui/button"
 import { Input } from "./ui/input"
 import { Label } from "./ui/label"
 import { Alert, AlertDescription } from "./ui/alert"
-import {
-  EmailAuthProvider,
-  onAuthStateChanged,
-  reauthenticateWithCredential,
-  updatePassword,
-  linkWithCredential,
-  deleteUser,
-} from "firebase/auth"
-import { auth } from "../firebase/config"
-import { deleteUserProfile, deleteAllUserScans } from "../firebase/firestore"
 import { useToast } from "../hooks/use-toast"
 
 export default function AccountSettings() {
   const router = useRouter()
   const { toast } = useToast()
 
-  const [firebaseUser, setFirebaseUser] = useState(null)
-  const [hasPasswordProvider, setHasPasswordProvider] = useState(false)
+  const [hasPassword, setHasPassword] = useState(true)
+  const [isCheckingPassword, setIsCheckingPassword] = useState(true)
 
   const [currentPassword, setCurrentPassword] = useState("")
   const [newPassword, setNewPassword] = useState("")
@@ -34,15 +25,16 @@ export default function AccountSettings() {
   const [isDeleting, setIsDeleting] = useState(false)
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setFirebaseUser(user)
-      setHasPasswordProvider(user?.providerData?.some((p) => p.providerId === "password") ?? false)
-    })
-
-    return () => unsubscribe()
+    fetch("/api/account")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data) setHasPassword(data.hasPassword)
+      })
+      .catch((err) => console.error("Error checking password status:", err))
+      .finally(() => setIsCheckingPassword(false))
   }, [])
 
-  const handleSetPassword = async (e) => {
+  const handlePasswordSubmit = async (e) => {
     e.preventDefault()
     setPasswordError("")
 
@@ -54,57 +46,34 @@ export default function AccountSettings() {
       setPasswordError("Password must be at least 6 characters.")
       return
     }
+    if (hasPassword && !currentPassword) {
+      setPasswordError("Current password is required.")
+      return
+    }
 
     try {
       setIsChangingPassword(true)
-      const credential = EmailAuthProvider.credential(firebaseUser.email, newPassword)
-      await linkWithCredential(firebaseUser, credential)
-      setHasPasswordProvider(true)
-
-      setNewPassword("")
-      setConfirmPassword("")
-      toast({
-        title: "Password set",
-        description: "You can now also sign in with your email and this password.",
+      const res = await fetch("/api/account/password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ currentPassword, newPassword }),
       })
-    } catch (error) {
-      console.error("Error setting password:", error)
-      setPasswordError(error.message || "Failed to set password.")
-    } finally {
-      setIsChangingPassword(false)
-    }
-  }
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || "Failed to update password.")
 
-  const handleChangePassword = async (e) => {
-    e.preventDefault()
-    setPasswordError("")
-
-    if (newPassword !== confirmPassword) {
-      setPasswordError("New passwords do not match.")
-      return
-    }
-    if (newPassword.length < 6) {
-      setPasswordError("New password must be at least 6 characters.")
-      return
-    }
-
-    try {
-      setIsChangingPassword(true)
-      const credential = EmailAuthProvider.credential(firebaseUser.email, currentPassword)
-      await reauthenticateWithCredential(firebaseUser, credential)
-      await updatePassword(firebaseUser, newPassword)
-
+      setHasPassword(true)
       setCurrentPassword("")
       setNewPassword("")
       setConfirmPassword("")
-      toast({ title: "Password updated", description: "Your password has been changed successfully." })
+      toast({
+        title: hasPassword ? "Password updated" : "Password set",
+        description: hasPassword
+          ? "Your password has been changed successfully."
+          : "You can now also sign in with your email and this password.",
+      })
     } catch (error) {
-      console.error("Error changing password:", error)
-      setPasswordError(
-        error.code === "auth/invalid-credential" || error.code === "auth/wrong-password"
-          ? "Current password is incorrect."
-          : error.message || "Failed to update password.",
-      )
+      console.error("Error updating password:", error)
+      setPasswordError(error.message || "Failed to update password.")
     } finally {
       setIsChangingPassword(false)
     }
@@ -121,34 +90,17 @@ export default function AccountSettings() {
 
     try {
       setIsDeleting(true)
-      const userInfo = localStorage.getItem("user")
-      const user = userInfo ? JSON.parse(userInfo) : null
+      const res = await fetch("/api/account", { method: "DELETE" })
+      if (!res.ok) throw new Error("Failed to delete account.")
 
-      if (user?.uid) {
-        await deleteAllUserScans(user.uid)
-        await deleteUserProfile(user.uid)
-      }
-
-      await deleteUser(firebaseUser)
-
-      localStorage.removeItem("user")
-      document.cookie = "auth=; path=/; max-age=0"
-      router.push("/")
+      await signOut({ callbackUrl: "/" })
     } catch (error) {
       console.error("Error deleting account:", error)
-      if (error.code === "auth/requires-recent-login") {
-        toast({
-          title: "Please log in again",
-          description: "For security, log out and log back in, then retry deleting your account.",
-          variant: "destructive",
-        })
-      } else {
-        toast({
-          title: "Error",
-          description: "Failed to delete your account. Please try again.",
-          variant: "destructive",
-        })
-      }
+      toast({
+        title: "Error",
+        description: "Failed to delete your account. Please try again.",
+        variant: "destructive",
+      })
     } finally {
       setIsDeleting(false)
     }
@@ -158,61 +110,32 @@ export default function AccountSettings() {
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle>{hasPasswordProvider ? "Change Password" : "Set a Password"}</CardTitle>
+          <CardTitle>{hasPassword ? "Change Password" : "Set a Password"}</CardTitle>
           <CardDescription>
-            {hasPasswordProvider
+            {hasPassword
               ? "Update the password used to sign in to your account"
               : "You signed in with Google - add a password so you can also sign in with your email"}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {hasPasswordProvider ? (
-            <form onSubmit={handleChangePassword} className="space-y-4 max-w-md">
+          {!isCheckingPassword && (
+            <form onSubmit={handlePasswordSubmit} className="space-y-4 max-w-md">
               {passwordError && (
                 <Alert variant="destructive">
                   <AlertDescription>{passwordError}</AlertDescription>
                 </Alert>
               )}
-              <div className="space-y-2">
-                <Label htmlFor="current-password">Current Password</Label>
-                <Input
-                  id="current-password"
-                  type="password"
-                  value={currentPassword}
-                  onChange={(e) => setCurrentPassword(e.target.value)}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="new-password">New Password</Label>
-                <Input
-                  id="new-password"
-                  type="password"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="confirm-password">Confirm New Password</Label>
-                <Input
-                  id="confirm-password"
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  required
-                />
-              </div>
-              <Button type="submit" className="bg-blue-600 hover:bg-blue-700" disabled={isChangingPassword}>
-                {isChangingPassword ? "Updating..." : "Update Password"}
-              </Button>
-            </form>
-          ) : (
-            <form onSubmit={handleSetPassword} className="space-y-4 max-w-md">
-              {passwordError && (
-                <Alert variant="destructive">
-                  <AlertDescription>{passwordError}</AlertDescription>
-                </Alert>
+              {hasPassword && (
+                <div className="space-y-2">
+                  <Label htmlFor="current-password">Current Password</Label>
+                  <Input
+                    id="current-password"
+                    type="password"
+                    value={currentPassword}
+                    onChange={(e) => setCurrentPassword(e.target.value)}
+                    required
+                  />
+                </div>
               )}
               <div className="space-y-2">
                 <Label htmlFor="new-password">New Password</Label>
@@ -225,7 +148,7 @@ export default function AccountSettings() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="confirm-password">Confirm Password</Label>
+                <Label htmlFor="confirm-password">Confirm {hasPassword ? "New " : ""}Password</Label>
                 <Input
                   id="confirm-password"
                   type="password"
@@ -235,7 +158,7 @@ export default function AccountSettings() {
                 />
               </div>
               <Button type="submit" className="bg-blue-600 hover:bg-blue-700" disabled={isChangingPassword}>
-                {isChangingPassword ? "Setting..." : "Set Password"}
+                {isChangingPassword ? "Saving..." : hasPassword ? "Update Password" : "Set Password"}
               </Button>
             </form>
           )}

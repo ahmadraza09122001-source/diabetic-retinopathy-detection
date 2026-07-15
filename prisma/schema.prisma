@@ -1,6 +1,6 @@
 datasource db {
-  provider = "postgresql"  // Change this if you're using a different database
-  url      = env("DATABASE_URL")  // Reads the database URL from .env
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 generator client {
@@ -8,18 +8,47 @@ generator client {
 }
 
 model User {
-  id       String  @id @default(uuid())
-  name     String
-  email    String  @unique
-  password String
-  scans    Scan[]
+  id           String   @id @default(uuid())
+  fullName     String
+  email        String   @unique
+  passwordHash String?  // null for Google-only accounts until they "Set a Password"
+  createdAt    DateTime @default(now())
+
+  profile     Profile?
+  scans       Scan[]
+  resetTokens PasswordResetToken[]
+}
+
+model Profile {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  phone     String?
+  age       Int?
+  gender    String?
+  updatedAt DateTime @updatedAt
 }
 
 model Scan {
-  id       String  @id @default(uuid())
-  userId   String
-  user     User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  imageUrl String
-  result   String
+  id           String   @id @default(uuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  patientName  String
+  patientAge   String
+  fileName     String
+  fileSize     Int
+  imagePreview String   @db.Text
+  resultClass  String
+  confidence   Json?
+  scanDate     DateTime @default(now())
+  createdAt    DateTime @default(now())
+}
+
+model PasswordResetToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
   createdAt DateTime @default(now())
 }

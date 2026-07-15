@@ -1,17 +1,15 @@
 "use client"
 import { useState, useEffect } from "react"
+import { useSession } from "next-auth/react"
 import { Button } from "./ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card"
 import { Input } from "./ui/input"
 import { Label } from "./ui/label"
 import { Progress } from "./ui/progress"
 import { Alert, AlertTitle, AlertDescription } from "./ui/alert"
-import { saveScan, getUserProfile } from "../firebase/firestore"
 import { useToast } from "../hooks/use-toast"
 import { generateScanReportPDF } from "../lib/pdf-report"
 import { formatGradeWithStage } from "../lib/dr-stage"
-// Update the import for FirestoreTest
-import FirestoreTest from "./firestore-test"
 
 const MAX_FILE_SIZE_MB = 5
 const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024
@@ -30,10 +28,8 @@ const getResultColor = (grade) => {
   return "bg-gray-100 text-gray-800 border-gray-300"
 }
 
-// Firestore rejects any document over 1,048,487 bytes, and a full-resolution
-// upload (up to MAX_FILE_SIZE_MB, base64-inflated ~33%) blows past that on its
-// own. Scan history only ever needs a small thumbnail, so downscale + recompress
-// before saving instead of storing the original image.
+// Scan history only ever needs a small thumbnail, so downscale + recompress
+// before saving instead of storing the full-resolution original.
 const createThumbnail = (dataUrl, maxDim = 400, quality = 0.6) => {
   return new Promise((resolve, reject) => {
     const img = new Image()
@@ -117,6 +113,7 @@ const checkImageQuality = (dataUrl) => {
 }
 
 export default function UploadImage() {
+  const { data: session } = useSession()
   const [image, setImage] = useState(null)
   const [preview, setPreview] = useState(null)
   const [result, setResult] = useState(null)
@@ -130,25 +127,21 @@ export default function UploadImage() {
   const [savedProfile, setSavedProfile] = useState(null)
   const { toast } = useToast()
 
-  // Pre-fill patient name/age from the saved profile (if this account has one)
-  // so a patient scanning their own image doesn't have to retype it - a doctor
+  // Pre-fill patient name/age from the account name + saved profile so a
+  // patient scanning their own image doesn't have to retype it - a doctor
   // scanning on behalf of someone else can just overwrite these fields.
   useEffect(() => {
-    const userInfo = localStorage.getItem("user")
-    if (!userInfo) return
-    const user = JSON.parse(userInfo)
+    if (session?.user?.name) setPatientName(session.user.name)
 
-    setPatientName(user.fullName || "")
-
-    getUserProfile(user.uid)
+    fetch("/api/profile")
+      .then((res) => (res.ok ? res.json() : null))
       .then((profile) => {
         if (!profile) return
         setSavedProfile(profile)
-        if (profile.fullName) setPatientName(profile.fullName)
         if (profile.age) setPatientAge(String(profile.age))
       })
       .catch((err) => console.error("Error loading profile for upload form:", err))
-  }, [])
+  }, [session])
 
   // Shared by both the file-picker input and drag-and-drop, so validation
   // (size, quality) stays identical regardless of how the file arrived.
@@ -273,16 +266,10 @@ export default function UploadImage() {
       // Save result to state
       setResult(data)
 
-      // Get user from localStorage
-      const userInfo = localStorage.getItem("user")
-      if (!userInfo) {
+      if (!session?.user?.id) {
         throw new Error("User not found. Please log in again.")
       }
 
-      const user = JSON.parse(userInfo)
-
-      // Downscale before saving - Firestore rejects documents over ~1MB and a
-      // full-resolution upload can exceed that on its own.
       let thumbnail = null
       try {
         thumbnail = await createThumbnail(preview)
@@ -290,17 +277,22 @@ export default function UploadImage() {
         console.error("Thumbnail generation failed:", thumbErr)
       }
 
-      // Save to Firestore
-      console.log("Attempting to save scan to Firestore with user ID:", user.uid)
-      await saveScan(user.uid, {
-        fileName: image?.name || "Unknown",
-        fileSize: image?.size || 0,
-        result: data,
-        imagePreview: thumbnail,
-        patientName: patientName.trim(),
-        patientAge: patientAge.trim(),
+      const saveRes = await fetch("/api/scans", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fileName: image?.name || "Unknown",
+          fileSize: image?.size || 0,
+          result: data,
+          imagePreview: thumbnail,
+          patientName: patientName.trim(),
+          patientAge: patientAge.trim(),
+        }),
       })
-      console.log("Scan saved successfully to Firestore")
+      if (!saveRes.ok) {
+        const saveData = await saveRes.json().catch(() => null)
+        throw new Error(saveData?.error || "Failed to save scan.")
+      }
 
       toast({
         title: "Scan saved successfully",
