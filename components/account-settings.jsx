@@ -244,7 +244,6 @@ export default function AccountSettings() {
 
       <Card className="border-red-200">
         <CardHeader>
-          <CardTitle className="text-red-700">Danger Zone</CardTitle>
           <CardDescription>Permanently delete your account and all associated data</CardDescription>
         </CardHeader>
         <CardContent>
