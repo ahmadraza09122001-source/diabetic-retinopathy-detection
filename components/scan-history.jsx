@@ -351,44 +351,6 @@ export default function ScanHistory() {
                     <Separator className="my-4" />
 
                     <div className="space-y-4">
-                      <div>
-                        <h4 className="text-sm font-medium text-gray-500 mb-2">Recommendations</h4>
-                        <div className="p-3 bg-white rounded border text-sm">
-                          {selectedScan.result.class === "No DR" ||
-                          (selectedScan.result.grade_label && selectedScan.result.grade_label.includes("No DR")) ? (
-                            <p>No signs of diabetic retinopathy detected. Continue regular annual screening.</p>
-                          ) : selectedScan.result.class === "Mild" ||
-                            (selectedScan.result.grade_label && selectedScan.result.grade_label.includes("Mild")) ? (
-                            <p>
-                              Mild non-proliferative diabetic retinopathy detected. Follow up with your eye care
-                              provider within 6-12 months.
-                            </p>
-                          ) : selectedScan.result.class === "Moderate" ||
-                            (selectedScan.result.grade_label &&
-                              selectedScan.result.grade_label.includes("Moderate")) ? (
-                            <p>
-                              Moderate non-proliferative diabetic retinopathy detected. Follow up with your eye care
-                              provider within 3-6 months.
-                            </p>
-                          ) : selectedScan.result.class === "Severe" ||
-                            (selectedScan.result.grade_label && selectedScan.result.grade_label.includes("Severe")) ? (
-                            <p>
-                              Severe non-proliferative diabetic retinopathy detected. Follow up with your eye care
-                              provider within 1-3 months.
-                            </p>
-                          ) : selectedScan.result.class === "Proliferative DR" ||
-                            (selectedScan.result.grade_label &&
-                              selectedScan.result.grade_label.includes("Proliferative")) ? (
-                            <p>
-                              Proliferative diabetic retinopathy detected. Urgent referral to an ophthalmologist is
-                              recommended.
-                            </p>
-                          ) : (
-                            <p>Please consult with your healthcare provider for interpretation of these results.</p>
-                          )}
-                        </div>
-                      </div>
-
                       <Button
                         onClick={() => handleDownloadReport(selectedScan)}
                         variant="outline"
